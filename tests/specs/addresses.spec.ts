@@ -46,19 +46,8 @@ async function start(serviceWorker, config) {
 }
 
 test.describe('Address configuration', () => {
-  test('with no allow list and no allow_all, the address is replaced', async ({ serviceWorker }) => {
+  test('with no allow list, the address is kept', async ({ serviceWorker }) => {
     await start(serviceWorker, configWith({}))
-
-    const tabId = await openTab(serviceWorker, 'https://example.org/hidden')
-    const record = await tabOpenRecord(serviceWorker, tabId)
-
-    expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
-    expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
-    expect(record.title).toBeUndefined()
-  })
-
-  test('allow_all keeps the address', async ({ serviceWorker }) => {
-    await start(serviceWorker, configWith({ allow_all: true }))
 
     const tabId = await openTab(serviceWorker, 'https://example.org/kept')
     const record = await tabOpenRecord(serviceWorker, tabId)
@@ -67,9 +56,31 @@ test.describe('Address configuration', () => {
     expect(record.filtered).toBe(false)
   })
 
-  test('a filter list takes precedence over allow_all', async ({ serviceWorker }) => {
+  test('an address off the allow list is replaced', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'test-allow', 'example.com', 'ALLOWED')
+    await start(serviceWorker, configWith({ allow_lists: ['test-allow'] }))
+
+    const tabId = await openTab(serviceWorker, 'https://example.org/hidden')
+    const record = await tabOpenRecord(serviceWorker, tabId)
+
+    expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
+    expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
+    expect(record.title).toBe('')
+  })
+
+  test('an empty allow list keeps the address', async ({ serviceWorker }) => {
+    await start(serviceWorker, configWith({ allow_lists: [] }))
+
+    const tabId = await openTab(serviceWorker, 'https://example.org/kept')
+    const record = await tabOpenRecord(serviceWorker, tabId)
+
+    expect(record.url).toContain('example.org/kept')
+    expect(record.filtered).toBe(false)
+  })
+
+  test('a filter list applies when there are no allow lists', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'test-filter', 'example.com', 'TEST_FILTERED')
-    await start(serviceWorker, configWith({ allow_all: true, filter_lists: ['test-filter'] }))
+    await start(serviceWorker, configWith({ filter_lists: ['test-filter'] }))
 
     const filteredTabId = await openTab(serviceWorker, 'https://example.com/private')
     const filtered = await tabOpenRecord(serviceWorker, filteredTabId)
@@ -81,15 +92,15 @@ test.describe('Address configuration', () => {
     expect(kept.url).toContain('example.org/public')
   })
 
-  test('a domain-only list keeps the hostname of a URL that is not allowed', async ({ serviceWorker }) => {
+  test('a domain-only list hides the address and the title', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'test-domain-only', 'example.net', 'TEST_DOMAIN')
     await start(serviceWorker, configWith({ domain_only_lists: ['test-domain-only'] }))
 
     const tabId = await openTab(serviceWorker, 'https://example.net/page')
     const record = await tabOpenRecord(serviceWorker, tabId)
 
-    expect(record.url).toBe('example.net')
-    expect(record.title).toBe('DOMAIN ONLY')
+    expect(record.url).toBe('')
+    expect(record.title).toBe('')
     expect(record.filtered_by_list).toBe('test-domain-only')
   })
 
@@ -97,7 +108,6 @@ test.describe('Address configuration', () => {
     await addListEntry(serviceWorker, 'test-both-filter', 'example.edu', 'TEST_FILTERED')
     await addListEntry(serviceWorker, 'test-both-domain-only', 'example.edu', 'TEST_DOMAIN')
     await start(serviceWorker, configWith({
-      allow_all: true,
       filter_lists: ['test-both-filter'],
       domain_only_lists: ['test-both-domain-only'],
     }))
@@ -105,7 +115,7 @@ test.describe('Address configuration', () => {
     const tabId = await openTab(serviceWorker, 'https://example.edu/page')
     const record = await tabOpenRecord(serviceWorker, tabId)
 
-    expect(record.url).toBe('example.edu')
+    expect(record.url).toBe('')
     expect(record.filtered_by_list).toBe('test-both-domain-only')
   })
 
@@ -133,8 +143,9 @@ test.describe('Address configuration', () => {
     const [record] = await recordsFor(serviceWorker, -1)
 
     expect(configured).toBeNull()
-    expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
-    expect('title' in record).toBe(false)
+    expect(record.url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(record.title).toBe('')
+    expect(record.filtered).toBe(true)
   })
 })
 

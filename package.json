@@ -13,7 +13,7 @@
   "dependencies": {
     "@bric/rex-content-processing": "github:bric-digital/rex-content-processing",
     "@bric/rex-core": "github:bric-digital/rex-core",
-    "@bric/rex-lists": "github:bric-digital/rex-lists",
+    "@bric/rex-lists": "github:bric-digital/rex-lists#split-and-load",
     "@bric/rex-types": "github:bric-digital/rex-types"
   },
   "devDependencies": {

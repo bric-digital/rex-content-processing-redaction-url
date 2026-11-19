@@ -51,7 +51,7 @@ async function processed(serviceWorker, record) {
 const KEPT_FIELDS = ['visit_id', 'referring_visit_id', 'visit_time', 'date', 'transition_type', 'tab_id', 'window_id']
 
 test.describe('rex-browsing-visit addresses', () => {
-  test('an address off the allow list is replaced, its title and domain are removed and the rest stays', async ({ serviceWorker }) => {
+  test('an address off the allow list is replaced, its title and domain are blanked and the rest stays', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
     await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
 
@@ -61,8 +61,8 @@ test.describe('rex-browsing-visit addresses', () => {
     expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
     expect(record.filtered).toBe(true)
     expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
-    expect('title' in record).toBe(false)
-    expect('domain' in record).toBe(false)
+    expect(record.title).toBe('')
+    expect(record.domain).toBe('')
 
     for (const field of KEPT_FIELDS) {
       expect(record[field]).toEqual(given[field])
@@ -82,26 +82,26 @@ test.describe('rex-browsing-visit addresses', () => {
     expect(record.allowed_by_list).toBe('browsing-allow')
   })
 
-  test('a filter list replaces the address with its category, also under allow_all', async ({ serviceWorker }) => {
+  test('a filter list replaces the address with its category', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'browsing-filter', 'hidden.test', 'EMAIL')
-    await startWith(serviceWorker, { allow_all: true, filter_lists: ['browsing-filter'] })
+    await startWith(serviceWorker, { filter_lists: ['browsing-filter'] })
 
     const record = await processed(serviceWorker, visit())
 
     expect(record.url).toBe('CATEGORY:EMAIL')
     expect(record.filtered_by_list).toBe('browsing-filter')
-    expect('title' in record).toBe(false)
-    expect('domain' in record).toBe(false)
+    expect(record.title).toBe('')
+    expect(record.domain).toBe('')
   })
 
-  test('a domain-only list keeps the hostname and the domain, and hides the title', async ({ serviceWorker }) => {
+  test('a domain-only list hides the address and the title and keeps the registered domain', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'browsing-domain-only', 'hidden.test', 'ANY')
-    await startWith(serviceWorker, { allow_all: true, domain_only_lists: ['browsing-domain-only'] })
+    await startWith(serviceWorker, { domain_only_lists: ['browsing-domain-only'] })
 
     const record = await processed(serviceWorker, visit())
 
-    expect(record.url).toBe('hidden.test')
-    expect(record.title).toBe('DOMAIN ONLY')
+    expect(record.url).toBe('')
+    expect(record.title).toBe('')
     expect(record.domain).toBe('hidden.test')
     expect(record.filtered_by_list).toBe('browsing-domain-only')
   })
@@ -111,7 +111,7 @@ test.describe('rex-browsing-visit addresses', () => {
     const record = await processed(serviceWorker, visit({ visit_id: '42' }))
 
     expect(configured).toBeNull()
-    expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
+    expect(record.url).toBe('CATEGORY:NO_CONFIGURATION')
     expect(record.visit_time).toBe(1795015358162)
   })
 

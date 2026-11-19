@@ -108,7 +108,7 @@ export async function waitForModuleConfiguration(serviceWorker, config) {
   }, expected), { timeout: 10000 }).toBe(true)
 }
 
-const REDACTION_FIELDS = ['allow_lists', 'allow_all', 'filter_lists', 'domain_only_lists']
+const REDACTION_FIELDS = ['allow_lists', 'filter_lists', 'domain_only_lists']
 
 export function configFor(pageEvents = {}) {
   const pageEventsConfig = { enabled: true, allow_all: true }

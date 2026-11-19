@@ -1,13 +1,10 @@
 import { REXContentProcessor } from '@bric/rex-content-processing/library'
 
-import { type AddressRecord, redactAddressFields } from './address-fields.mjs'
-import { redact } from './address-lists.mjs'
+import { type AddressRecord, redactAddressFields, resolveAddressOrHide } from './address-fields.mjs'
 import { isBrowsingRecord, redactBrowsingRecord } from './browsing-records.mjs'
 import { type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
 
 const EVENT_NAME = 'rex-page-event'
-
-const HIDE_EVERY_ADDRESS: REXContentProcessingUrlRedactionConfiguration = { enabled: true }
 
 type PageEventRecord = AddressRecord
 
@@ -28,18 +25,14 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
     }
 
     if (isBrowsingRecord(content)) {
-      return redactBrowsingRecord(this.activeConfiguration(), content)
+      return redactBrowsingRecord(this.config, content)
     }
 
     return Promise.resolve(content)
   }
 
-  private activeConfiguration(): REXContentProcessingUrlRedactionConfiguration {
-    return this.config ?? HIDE_EVERY_ADDRESS
-  }
-
   private async redactRecord(record: PageEventRecord): Promise<PageEventRecord> {
-    const config = this.activeConfiguration()
+    const config = this.config
     const redacted: PageEventRecord = { ...record }
 
     await redactAddressFields(config, redacted)
@@ -51,7 +44,7 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
 }
 
 async function redactRelatedAddress(
-  config: REXContentProcessingUrlRedactionConfiguration,
+  config: REXContentProcessingUrlRedactionConfiguration | null,
   record: PageEventRecord,
   field: string,
   filteredField: string
@@ -62,7 +55,7 @@ async function redactRelatedAddress(
     return
   }
 
-  const redaction = await redact(config, address, '')
+  const redaction = await resolveAddressOrHide(config, address, '')
 
   record[field] = redaction.url
   record[filteredField] = redaction.filtered
