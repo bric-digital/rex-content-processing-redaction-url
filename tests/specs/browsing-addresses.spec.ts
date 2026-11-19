@@ -185,7 +185,7 @@ test.describe('other rex-browsing records', () => {
 
   test('a record that is not a page or browsing record passes through unchanged (control)', async ({ serviceWorker }) => {
     await startWith(serviceWorker, {})
-    const given = { name: 'pdk-app-event', event_name: 'rex-browsing-visit-ceiling-exceeded', visit_id: '53', event_details: { domain: 'hidden.test' } }
+    const given = { name: 'pdk-app-event', event_name: 'rex-unrelated-event', visit_id: '53', event_details: { domain: 'hidden.test' } }
 
     const record = await processed(serviceWorker, given)
 

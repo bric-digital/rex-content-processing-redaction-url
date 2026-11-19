@@ -3,7 +3,7 @@ import { type ListEntry } from '@bric/rex-lists'
 export type OnFailure = 'pass' | 'hide'
 
 export interface AddressFields {
-  url: string
+  url?: string
   title?: string
   domain?: string
   copies?: string[]
@@ -13,6 +13,7 @@ export interface AddressFields {
 export interface RecordType {
   name: string
   event_name?: string
+  container?: string
   fields: AddressFields
 }
 

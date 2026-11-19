@@ -286,14 +286,6 @@ test.describe('states', () => {
     expect(await processed(serviceWorker, given)).toEqual(given)
   })
 
-  test('a ceiling diagnostic with a nested address passes through unchanged', async ({ serviceWorker }) => {
-    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
-
-    const given = withId({ name: 'pdk-app-event', event_name: 'rex-history-visit-ceiling-exceeded', event_details: { recorded_url: `${HIDDEN}/p`, domain: 'hidden.test' } })
-
-    expect(await processed(serviceWorker, given)).toEqual(given)
-  })
-
   test('with enabled false the record passes through unchanged', async ({ serviceWorker }) => {
     await startWith(serviceWorker, ALLOW_ONLY_KEPT)
     await serviceWorker.evaluate(() => self.rexContentProcessingUrlRedactionPlugin.processor.disable())
@@ -411,5 +403,139 @@ test.describe('record_types in configuration', () => {
 
     expect(wanted.address).toBe(NOT_ON_ALLOWLIST)
     expect(await processed(serviceWorker, other)).toEqual(other)
+  })
+})
+
+function historyCeiling(address, domain) {
+  return withId({
+    name: 'pdk-app-event',
+    event_name: 'rex-history-visit-ceiling-exceeded',
+    event_details: { recorded_url: address, domain, visit_count: 120, ceiling: 100, window_start: 1795015000000, window_end: 1795015358162, date: 1795015358162 },
+  })
+}
+
+function browsingCeiling(domain) {
+  return withId({
+    name: 'pdk-app-event',
+    event_name: 'rex-browsing-visit-ceiling-exceeded',
+    event_details: { domain, visit_count: 120, ceiling: 100, visits_in_drain: 30, date: 1795015358162 },
+  })
+}
+
+function expectOtherFieldsKept(result, given, changedInner) {
+  const { event_details: givenInner, ...givenTop } = given
+  const { event_details: resultInner, ...resultTop } = result
+
+  expect(resultTop).toEqual(givenTop)
+
+  for (const [field, value] of Object.entries(givenInner)) {
+    if (changedInner.includes(field) === false) {
+      expect(resultInner[field]).toEqual(value)
+    }
+  }
+}
+
+test.describe('visit ceiling events', () => {
+  test('rex-history: an address off the allow list is replaced inside event_details', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = historyCeiling(`${HIDDEN}/p?q=1`, 'hidden.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.recorded_url).toBe(NOT_ON_ALLOWLIST)
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expectOtherFieldsKept(result, given, ['recorded_url', 'domain', 'filtered', 'filtered_by_list'])
+  })
+
+  test('rex-history: an allowed address is kept with its domain', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = historyCeiling(`${ALLOWED}/p`, 'kept.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.recorded_url).toBe(`${ALLOWED}/p`)
+    expect(result.event_details.domain).toBe('kept.test')
+    expect(result.event_details.filtered).toBe(false)
+    expectOtherFieldsKept(result, given, ['filtered', 'allowed_by_list', 'allowed_by_list_entry'])
+  })
+
+  test('rex-history: before configuration the address is hidden', async ({ serviceWorker }) => {
+    const given = historyCeiling(`${HIDDEN}/p`, 'hidden.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.recorded_url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expectOtherFieldsKept(result, given, ['recorded_url', 'domain', 'filtered'])
+  })
+
+  test('rex-browsing: a domain off the allow list is blanked inside event_details', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = browsingCeiling('hidden.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expectOtherFieldsKept(result, given, ['domain', 'filtered'])
+  })
+
+  test('rex-browsing: an allowed domain is kept', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = browsingCeiling('kept.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.domain).toBe('kept.test')
+    expect(result.event_details.filtered).toBe(false)
+    expectOtherFieldsKept(result, given, ['filtered'])
+  })
+
+  test('rex-browsing: before configuration the domain is blanked', async ({ serviceWorker }) => {
+    const given = browsingCeiling('hidden.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expectOtherFieldsKept(result, given, ['domain', 'filtered'])
+  })
+
+  test('rex-browsing: a failure leaves the event unchanged under pass and blanks the domain under hide', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'hide' })
+
+    const result = await processed(serviceWorker, browsingCeiling('hidden.test'))
+
+    expect(result.event_details.domain).toBe('')
+  })
+
+  test('a pdk-app-event with a different event_name passes through unchanged', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = withId({ name: 'pdk-app-event', event_name: 'something-else', event_details: { recorded_url: `${HIDDEN}/p`, domain: 'hidden.test' } })
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('a ceiling event whose event_details is not an object passes through unchanged', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = withId({ name: 'pdk-app-event', event_name: 'rex-history-visit-ceiling-exceeded', event_details: 'text' })
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('the event the processor receives is not changed', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+    const given = historyCeiling(`${HIDDEN}/p`, 'hidden.test')
+
+    const unchanged = await serviceWorker.evaluate(async (record) => {
+      const before = JSON.stringify(record)
+      await self.REXContentProcessorManager.getInstance().processContent(record)
+
+      return JSON.stringify(record) === before
+    }, given)
+
+    expect(unchanged).toBe(true)
   })
 })

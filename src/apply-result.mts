@@ -24,8 +24,8 @@ function writeCopies(record: AddressRecord, fields: AddressFields, result: Addre
   }
 }
 
-export function applyMainResult(record: AddressRecord, fields: AddressFields, result: AddressResult): void {
-  record[fields.url] = result.url
+export function applyMainResult(record: AddressRecord, urlField: string, fields: AddressFields, result: AddressResult): void {
+  record[urlField] = result.url
 
   writeCopies(record, fields, result)
 

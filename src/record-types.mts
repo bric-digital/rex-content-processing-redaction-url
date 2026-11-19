@@ -7,6 +7,8 @@ export const DEFAULT_RECORD_TYPES: RecordType[] = [
   { name: 'rex-browsing-visit', fields: { url: 'url', title: 'title', domain: 'domain' } },
   { name: 'rex-browsing-opener', fields: { url: 'url', domain: 'domain' } },
   { name: 'rex-browsing-page', fields: { url: 'url', domain: 'domain' } },
+  { name: 'pdk-app-event', event_name: 'rex-history-visit-ceiling-exceeded', container: 'event_details', fields: { url: 'recorded_url', domain: 'domain' } },
+  { name: 'pdk-app-event', event_name: 'rex-browsing-visit-ceiling-exceeded', container: 'event_details', fields: { domain: 'domain' } },
 ]
 
 function matches(type: RecordType, record: Record<string, unknown>): boolean {
