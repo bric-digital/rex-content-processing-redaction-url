@@ -1,7 +1,7 @@
 import { type REXConfiguration } from '@bric/rex-core/common'
 import rexCorePlugin, { REXServiceWorkerModule, registerREXModule } from '@bric/rex-core/service-worker'
 
-import { CONFIGURATION_DETAILS, CONFIGURATION_KEY } from './configuration.mjs'
+import { CONFIGURATION_DETAILS, CONFIGURATION_KEY, normalizeConfiguration } from './configuration.mjs'
 import { REXContentProcessingUrlRedactionProcessor } from './processor.mjs'
 import { type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
 
@@ -43,7 +43,7 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
     this.config = redactionConfig
 
     if (redactionConfig.enabled === true) {
-      this.processor.config = redactionConfig
+      this.processor.config = normalizeConfiguration(redactionConfig)
       this.processor.enable()
     } else {
       this.processor.disable()

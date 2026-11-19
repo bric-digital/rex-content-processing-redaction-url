@@ -6,6 +6,7 @@ import { resolveAddress } from './address-rules.mjs'
 import { recordTypeOf } from './record-types.mjs'
 import { type AddressFields, type AddressResult, type RecordType, type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
 
+const LOG_PREFIX = '[rex-content-processing-url-redaction]'
 const NO_CONFIGURATION = 'CATEGORY:NO_CONFIGURATION'
 const REDACTION_FAILED = 'CATEGORY:REDACTION_FAILED'
 
@@ -75,9 +76,19 @@ function hideDomain(record: AddressRecord, domainField: string): AddressRecord {
 }
 
 function domainAfter(record: AddressRecord, domainField: string, result: AddressResult): AddressRecord {
-  const blanked = result.url.startsWith('CATEGORY:')
+  if (result.url.startsWith('CATEGORY:')) {
+    return { ...record, [domainField]: '', filtered: true }
+  }
 
-  return { ...record, [domainField]: blanked ? '' : result.domain, filtered: blanked }
+  if (result.domain === '') {
+    return { ...record, filtered: false }
+  }
+
+  return { ...record, [domainField]: result.domain, filtered: false }
+}
+
+function isHostLike(domain: string): boolean {
+  return /^[^\s/?#@\\]+$/.test(domain)
 }
 
 function scopeOf(record: AddressRecord, type: RecordType): AddressRecord | null {
@@ -94,6 +105,42 @@ function scopeOf(record: AddressRecord, type: RecordType): AddressRecord | null 
   return inner as AddressRecord
 }
 
+function isRedactable(scope: AddressRecord, fields: AddressFields): boolean {
+  if (fields.url !== undefined) {
+    return typeof scope[fields.url] === 'string'
+  }
+
+  if (fields.domain !== undefined) {
+    const domain = scope[fields.domain]
+
+    return typeof domain === 'string' && domain !== ''
+  }
+
+  return false
+}
+
+function hiddenScope(scope: AddressRecord, fields: AddressFields, label: string): AddressRecord {
+  if (fields.url !== undefined) {
+    return hideAddresses(scope, fields.url, fields, label)
+  }
+
+  return hideDomain(scope, fields.domain as string)
+}
+
+function withScope(record: AddressRecord, type: RecordType, scope: AddressRecord): AddressRecord {
+  return type.container === undefined ? scope : { ...record, [type.container]: scope }
+}
+
+async function listsAreLoaded(): Promise<boolean> {
+  try {
+    return await listsLoaded()
+  } catch (error) {
+    console.warn(`${LOG_PREFIX} could not read whether lists are loaded`, error)
+
+    return false
+  }
+}
+
 export class REXContentProcessingUrlRedactionProcessor extends REXContentProcessor {
   config: REXContentProcessingUrlRedactionConfiguration | null = null
 
@@ -102,46 +149,66 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
   }
 
   async processContent(content: unknown): Promise<unknown> {
-    const type = recordTypeOf(this.config, content)
+    try {
+      const type = recordTypeOf(this.config, content)
 
-    if (type === null) {
+      if (type === null) {
+        return content
+      }
+
+      return await this.processMatched(content as AddressRecord, type)
+    } catch (error) {
+      console.warn(`${LOG_PREFIX} could not process a record`, error)
+
+      return this.failureResult(content)
+    }
+  }
+
+  private failureResult(content: unknown): unknown {
+    try {
+      const type = recordTypeOf(this.config, content)
+
+      if (type === null || this.config?.on_failure !== 'hide') {
+        return content
+      }
+
+      const record = content as AddressRecord
+      const scope = scopeOf(record, type)
+
+      if (scope === null || isRedactable(scope, type.fields) === false) {
+        return content
+      }
+
+      return withScope(record, type, hiddenScope(scope, type.fields, REDACTION_FAILED))
+    } catch {
       return content
     }
+  }
 
-    const record = content as AddressRecord
+  private async processMatched(record: AddressRecord, type: RecordType): Promise<unknown> {
     const scope = scopeOf(record, type)
 
-    if (scope === null) {
-      return content
+    if (scope === null || isRedactable(scope, type.fields) === false) {
+      return record
     }
 
     const redacted = await this.redactScope(scope, type.fields)
 
-    if (redacted === null) {
-      return content
-    }
-
-    return type.container === undefined ? redacted : { ...record, [type.container]: redacted }
+    return redacted === null ? record : withScope(record, type, redacted)
   }
 
   private redactScope(scope: AddressRecord, fields: AddressFields): Promise<AddressRecord | null> {
     if (fields.url !== undefined) {
-      return typeof scope[fields.url] === 'string' ? this.redactAddresses(scope, fields.url, fields) : Promise.resolve(null)
+      return this.redactAddresses(scope, fields.url, fields)
     }
 
-    if (fields.domain !== undefined) {
-      const domain = scope[fields.domain]
-
-      return typeof domain === 'string' && domain !== '' ? this.redactDomain(scope, fields.domain, domain) : Promise.resolve(null)
-    }
-
-    return Promise.resolve(null)
+    return this.redactDomain(scope, fields.domain as string, scope[fields.domain as string] as string)
   }
 
   private async redactAddresses(scope: AddressRecord, urlField: string, fields: AddressFields): Promise<AddressRecord | null> {
     const config = this.config
 
-    if (config === null || await listsLoaded() === false) {
+    if (config === null || await listsAreLoaded() === false) {
       return hideAddresses(scope, urlField, fields, NO_CONFIGURATION)
     }
 
@@ -155,9 +222,13 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
   }
 
   private async redactDomain(scope: AddressRecord, domainField: string, domain: string): Promise<AddressRecord | null> {
+    if (isHostLike(domain) === false) {
+      return { ...scope, filtered: false }
+    }
+
     const config = this.config
 
-    if (config === null || await listsLoaded() === false) {
+    if (config === null || await listsAreLoaded() === false) {
       return hideDomain(scope, domainField)
     }
 

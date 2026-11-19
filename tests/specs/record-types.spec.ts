@@ -15,14 +15,25 @@ function withId(record) {
   return { ...record, test_id: `record-types-${nextId}` }
 }
 
+async function capturedCount(serviceWorker, testId) {
+  return serviceWorker.evaluate((id) => self.__capturedEvents.filter((e) => e.test_id === id).length, testId)
+}
+
 async function processed(serviceWorker, record) {
   await serviceWorker.evaluate((given) => {
     self.dispatchEvent(given)
   }, record)
 
-  await expect.poll(() => serviceWorker.evaluate((id) => (
-    self.__capturedEvents.filter((e) => e.test_id === id).length
-  ), record.test_id)).toBe(1)
+  await expect.poll(() => capturedCount(serviceWorker, record.test_id)).toBe(1)
+
+  const sentinel = withId({ name: 'sentinel' })
+
+  await serviceWorker.evaluate((given) => {
+    self.dispatchEvent(given)
+  }, sentinel)
+  await expect.poll(() => capturedCount(serviceWorker, sentinel.test_id)).toBe(1)
+
+  expect(await capturedCount(serviceWorker, record.test_id)).toBe(1)
 
   return serviceWorker.evaluate((id) => (
     self.__capturedEvents.find((e) => e.test_id === id)
@@ -501,12 +512,21 @@ test.describe('visit ceiling events', () => {
     expectOtherFieldsKept(result, given, ['domain', 'filtered'])
   })
 
-  test('rex-browsing: a failure leaves the event unchanged under pass and blanks the domain under hide', async ({ serviceWorker }) => {
+  test('rex-browsing: a failure leaves the event unchanged under pass', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'pass' })
+
+    const given = browsingCeiling('hidden.test')
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('rex-browsing: a failure blanks the domain under hide', async ({ serviceWorker }) => {
     await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'hide' })
 
     const result = await processed(serviceWorker, browsingCeiling('hidden.test'))
 
     expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
   })
 
   test('a pdk-app-event with a different event_name passes through unchanged', async ({ serviceWorker }) => {
@@ -537,5 +557,139 @@ test.describe('visit ceiling events', () => {
     }, given)
 
     expect(unchanged).toBe(true)
+  })
+})
+
+function skipped(domain) {
+  return withId({
+    name: 'pdk-app-event',
+    event_name: 'rex-history-skipped',
+    event_details: {
+      domain,
+      failed_step: 'visit-lookup',
+      error_name: 'Error',
+      error_message: 'failed',
+      url_length: 40,
+      hostname_length: 11,
+      title_length: 8,
+      scheme: 'https',
+      has_query: true,
+      visit_count: 3,
+      history_item_id: '77',
+      date: 1795015358162,
+    },
+  })
+}
+
+test.describe('rex-history-skipped', () => {
+  test('a domain off the allow list is blanked and every other field is kept', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = skipped('hidden.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expectOtherFieldsKept(result, given, ['domain', 'filtered'])
+  })
+
+  test('an allowed domain is kept', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = skipped('kept.test')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.domain).toBe('kept.test')
+    expect(result.event_details.filtered).toBe(false)
+    expectOtherFieldsKept(result, given, ['filtered'])
+  })
+
+  test('a domain that is not a host is left as it was', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const given = skipped('not available')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.domain).toBe('not available')
+    expect(result.event_details.filtered).toBe(false)
+    expectOtherFieldsKept(result, given, ['filtered'])
+  })
+})
+
+test.describe('settings that are not valid', () => {
+  const HIDDEN_VISIT = { name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }
+
+  test('record_types given as an object uses the default record types', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, record_types: { name: 'rex-browsing-visit' } })
+
+    const result = await processed(serviceWorker, withId(HIDDEN_VISIT))
+
+    expect(result.url).toBe(NOT_ON_ALLOWLIST)
+  })
+
+  test('record_types with an entry that has no fields uses the default record types', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, record_types: [{ name: 'custom-record' }] })
+
+    const result = await processed(serviceWorker, withId(HIDDEN_VISIT))
+
+    expect(result.url).toBe(NOT_ON_ALLOWLIST)
+  })
+
+  test('on_failure that is neither pass nor hide hides the record when a list has no entries', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'Hide' })
+
+    const result = await processed(serviceWorker, withId(HIDDEN_VISIT))
+
+    expect(result.url).toBe('CATEGORY:REDACTION_FAILED')
+  })
+})
+
+test.describe('an error while handling a matched record', () => {
+  function recordThatThrowsOnTitle() {
+    const record = { name: 'rex-browsing-visit', url: 'https://hidden.test/p', domain: 'hidden.test' }
+
+    Object.defineProperty(record, 'title', {
+      enumerable: false,
+      get() {
+        throw new Error('title unreadable')
+      },
+    })
+
+    return record
+  }
+
+  async function processDirectly(serviceWorker) {
+    return serviceWorker.evaluate(async (source) => {
+      const record = new Function(`return (${source})()`)()
+      const processor = self.rexContentProcessingUrlRedactionPlugin.processor
+      const result = await processor.processContent(record)
+
+      return { same: result === record, url: result.url, domain: result.domain }
+    }, recordThatThrowsOnTitle.toString())
+  }
+
+  test('the record is returned as received under pass', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, on_failure: 'pass' })
+
+    expect(await processDirectly(serviceWorker)).toEqual({ same: true, url: 'https://hidden.test/p', domain: 'hidden.test' })
+  })
+
+  test('the addresses are replaced under hide', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, on_failure: 'hide' })
+
+    expect(await processDirectly(serviceWorker)).toEqual({ same: false, url: 'CATEGORY:REDACTION_FAILED', domain: '' })
+  })
+})
+
+test.describe('other addresses before configuration', () => {
+  test('are replaced with the no configuration label and non-strings are skipped', async ({ serviceWorker }) => {
+    const result = await processed(serviceWorker, withId({
+      name: 'rex-page-event', url: `${HIDDEN}/p`, title: 'T', previous_url: `${HIDDEN}/a`, opener_url: 4, link_url: `${HIDDEN}/l`,
+    }))
+
+    expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.previous_url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.link_url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.opener_url).toBe(4)
   })
 })
