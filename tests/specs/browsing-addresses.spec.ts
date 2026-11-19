@@ -140,6 +140,44 @@ test.describe('rex-browsing-visit addresses', () => {
   })
 })
 
+test.describe('rex-browsing-visit records without a usable address', () => {
+  test('a numeric url passes through unchanged', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
+    await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+
+    const given = visit({ visit_id: '61', url: 12345 })
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('a missing url passes through unchanged', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
+    await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+
+    const { url, ...given } = visit({ visit_id: '62' })
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  for (const [label, address] of [['an empty', ''], ['an invalid', 'not a url']]) {
+    test(`${label} url keeps its url and title`, async ({ serviceWorker }) => {
+      await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
+      await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+
+      const given = visit({ visit_id: '63', url: address })
+      const record = await processed(serviceWorker, given)
+
+      expect(record.url).toBe(address)
+      expect(record.title).toBe(given.title)
+      expect(record.filtered).toBe(false)
+
+      for (const field of KEPT_FIELDS) {
+        expect(record[field]).toEqual(given[field])
+      }
+    })
+  }
+})
+
 test.describe('other rex-browsing records', () => {
   for (const name of ['rex-browsing-opener', 'rex-browsing-page']) {
     test(`${name}: an address off the allow list is replaced and marked filtered`, async ({ serviceWorker }) => {

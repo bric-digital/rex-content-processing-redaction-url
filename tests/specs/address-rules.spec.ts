@@ -48,6 +48,21 @@ test.describe('Address rules', () => {
     })
   }
 
+  test('a lookup that throws fails and leaves the address unchanged', async ({ serviceWorker }) => {
+    await serviceWorker.evaluate(() => new Promise((resolve, reject) => {
+      const request = indexedDB.open('webmunk_lists', 99)
+
+      request.onsuccess = () => {
+        request.result.close()
+        resolve()
+      }
+      request.onerror = () => reject(request.error)
+    }))
+
+    expect(await resolve(serviceWorker, { allow_lists: ['a'] }, 'https://any.test/p', 'T'))
+      .toMatchObject({ failed: true, filtered: false, url: 'https://any.test/p', title: 'T', domain: 'any.test' })
+  })
+
   test('an empty list fails even when another named list would match', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'd', 'example.com', 'ANY')
 
@@ -77,7 +92,7 @@ test.describe('Address rules', () => {
     expect(result.filtered_by_list_entry).toMatchObject({ list_name: 'd', pattern: 'example.com' })
   })
 
-  test('a domain-only match wins over an allow list that does not match', async ({ serviceWorker }) => {
+  test('a domain-only match wins over an allow list that has entries but does not match the address', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'a', 'kept.test', 'ALLOWED')
     await addListEntry(serviceWorker, 'd', 'hidden.test', 'ANY')
 

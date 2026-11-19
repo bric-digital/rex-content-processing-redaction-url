@@ -19,8 +19,13 @@ export function resolveAddressOrHide(config: REXContentProcessingUrlRedactionCon
   return resolveAddress(config, url, title)
 }
 
-export async function redactAddressFields(config: REXContentProcessingUrlRedactionConfiguration | null, record: AddressRecord): Promise<AddressResult> {
-  const url = typeof record.url === 'string' ? record.url : ''
+export async function redactAddressFields(config: REXContentProcessingUrlRedactionConfiguration | null, record: AddressRecord): Promise<void> {
+  const url = record.url
+
+  if (typeof url !== 'string') {
+    return
+  }
+
   const title = typeof record.title === 'string' ? record.title : ''
   const result = await resolveAddressOrHide(config, url, title)
 
@@ -42,6 +47,4 @@ export async function redactAddressFields(config: REXContentProcessingUrlRedacti
   if (result.allowed_by_list !== undefined) {
     record.allowed_by_list = result.allowed_by_list
   }
-
-  return result
 }
