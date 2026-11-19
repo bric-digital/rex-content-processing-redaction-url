@@ -820,3 +820,41 @@ test.describe('a configuration applied after an unusable section', () => {
     expect(onFailure).toBe('hide')
   })
 })
+
+test.describe('the enabled setting', () => {
+  const VISIT = { name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }
+
+  async function applySection(serviceWorker, section) {
+    await serviceWorker.evaluate((value) => {
+      self.rexContentProcessingUrlRedactionPlugin.applyConfiguration({ content_processing_url_redaction: value })
+    }, section)
+  }
+
+  for (const section of [{}, { enabled: 'yes' }]) {
+    test(`${JSON.stringify(section)} hides the address`, async ({ serviceWorker }) => {
+      await applySection(serviceWorker, section)
+
+      const result = await processed(serviceWorker, withId(VISIT))
+
+      expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+    })
+  }
+
+  test('enabled false passes the record through unchanged', async ({ serviceWorker }) => {
+    await applySection(serviceWorker, { enabled: false })
+
+    const given = withId(VISIT)
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('enabled true with no lists leaves the address unchanged and not filtered', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, {})
+
+    const given = withId(VISIT)
+    const result = await processed(serviceWorker, given)
+
+    expect(result.url).toBe(given.url)
+    expect(result.filtered).toBe(false)
+  })
+})

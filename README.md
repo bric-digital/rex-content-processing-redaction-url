@@ -11,7 +11,7 @@ Collectors store records as they arrive, so a record that carries a web address 
 - Before the configuration arrives, and while `rex-lists` has not yet loaded its lists, every address becomes `CATEGORY:NO_CONFIGURATION`.
 - When a list named in the configuration has no entries, or a lookup fails, the record passes through unchanged unless `on_failure` is `hide`, which replaces its addresses with `CATEGORY:REDACTION_FAILED`.
 - A record whose address field is missing or is not a string passes through unchanged.
-- Once the configuration sets `enabled` to anything but `true`, the processor unregisters and records pass through unchanged.
+- Only an explicit `enabled: false` turns the processor off: records then pass through unchanged. With a missing section, a section that is `null`, not an object or an array, or an object whose `enabled` is absent or not a boolean (a warning is logged when it is present), the processor stays on and hides every address with `CATEGORY:NO_CONFIGURATION`. With `enabled: true` the rules apply.
 - The processor returns a new record and never changes the record it receives, because the event bus gives the same record to every module.
 
 ### Where it runs
@@ -70,7 +70,7 @@ This module reads the `content_processing_url_redaction` section of the configur
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `enabled` | boolean | Yes | none | When `true`, addresses are hidden by the lists below. When anything else, records pass through unchanged. Until the configuration arrives and the lists have loaded, every address becomes `CATEGORY:NO_CONFIGURATION`. |
+| `enabled` | boolean | Yes | none | When `true`, addresses are hidden by the lists below. When `false`, records pass through unchanged. When absent or not a boolean, the section counts as missing. Until the configuration arrives and the lists have loaded, every address becomes `CATEGORY:NO_CONFIGURATION`. |
 | `allow_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose addresses are kept. Every other address becomes `CATEGORY:NOT_ON_ALLOWLIST`. With no lists, every address is allowed. |
 | `filter_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose matching addresses become `CATEGORY:<category>`. |
 | `domain_only_lists` | string[] | No | `[]` | Matching addresses lose their address and title and keep their registered domain. |

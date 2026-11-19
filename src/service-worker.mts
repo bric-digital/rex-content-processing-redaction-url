@@ -5,6 +5,7 @@ import { CONFIGURATION_DETAILS, CONFIGURATION_KEY, normalizeConfiguration } from
 import { REXContentProcessingUrlRedactionProcessor } from './processor.mjs'
 import { type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
 
+const LOG_PREFIX = '[rex-content-processing-url-redaction]'
 const CONFIGURATION_TIMEOUT_MS = 10000
 
 class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
@@ -41,6 +42,14 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
     }
 
     const redactionConfig = section as REXContentProcessingUrlRedactionConfiguration
+
+    if (typeof redactionConfig.enabled !== 'boolean') {
+      if (redactionConfig.enabled !== undefined) {
+        console.warn(`${LOG_PREFIX} enabled is not true or false, treating the configuration as missing`)
+      }
+
+      return
+    }
 
     this.config = redactionConfig
 
