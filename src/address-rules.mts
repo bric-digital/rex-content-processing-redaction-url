@@ -68,7 +68,18 @@ function domainOnlyResult(match: ListMatch, domain: string): AddressResult {
   }
 }
 
-function notOnAllowListResult(): AddressResult {
+function notOnAllowListResult(config: REXContentProcessingRedactionUrlConfiguration, domain: string): AddressResult {
+  if (config.not_on_allowlist_behavior === 'domain_only') {
+    return {
+      url: '',
+      title: '',
+      domain,
+      filtered: true,
+      failed: false,
+      filtered_by_list: NOT_ON_ALLOWLIST,
+    }
+  }
+
   return {
     url: `CATEGORY:${NOT_ON_ALLOWLIST}`,
     title: '',
@@ -116,7 +127,7 @@ async function applyRules(config: REXContentProcessingRedactionUrlConfiguration,
   const allowMatch = await findListMatch(url, allowLists)
 
   if (allowLists.length > 0 && allowMatch === null) {
-    return notOnAllowListResult()
+    return notOnAllowListResult(config, domain)
   }
 
   const filterMatch = await findListMatch(url, config.filter_lists ?? [])

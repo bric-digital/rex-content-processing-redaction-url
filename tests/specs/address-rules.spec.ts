@@ -126,6 +126,65 @@ test.describe('Address rules', () => {
       .toMatchObject({ url: 'CATEGORY:NOT_ON_ALLOWLIST', title: '', domain: '', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST', failed: false })
   })
 
+  test('with not_on_allowlist_behavior category an address on no allow list is replaced by the not-on-allowlist label', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+
+    expect(await resolve(serviceWorker, { allow_lists: ['a'], not_on_allowlist_behavior: 'category' }, 'https://www.example.edu/p', 'T'))
+      .toMatchObject({ url: 'CATEGORY:NOT_ON_ALLOWLIST', title: '', domain: '', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST', failed: false })
+  })
+
+  test('with not_on_allowlist_behavior domain_only an address on no allow list keeps only its registered domain and still reports that it was on no allow list', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+
+    const result = await resolve(serviceWorker, { allow_lists: ['a'], not_on_allowlist_behavior: 'domain_only' }, 'https://www.example.edu/p?q=1', 'T')
+
+    expect(result).toMatchObject({ url: '', title: '', domain: 'example.edu', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST', failed: false })
+    expect(result.filtered_by_list_entry).toBeUndefined()
+    expect(result.allowed_by_list).toBeUndefined()
+    expect(result.allowed_by_list_entry).toBeUndefined()
+  })
+
+  test('with not_on_allowlist_behavior domain_only an address with no registered domain on no allow list keeps its host', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+
+    expect(await resolve(serviceWorker, { allow_lists: ['a'], not_on_allowlist_behavior: 'domain_only' }, 'http://192.0.2.7/p', 'T'))
+      .toMatchObject({ url: '', title: '', domain: '192.0.2.7', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST' })
+  })
+
+  test('with not_on_allowlist_behavior domain_only an address on no allow list is not looked up on a filter list', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+    await addListEntry(serviceWorker, 'f', 'example.org', 'news')
+
+    expect(await resolve(serviceWorker, { allow_lists: ['a'], filter_lists: ['f'], not_on_allowlist_behavior: 'domain_only' }, 'https://example.org/p', 'T'))
+      .toMatchObject({ url: '', title: '', domain: 'example.org', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST' })
+  })
+
+  test('with not_on_allowlist_behavior domain_only a domain-only list match still reports its list', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+    await addListEntry(serviceWorker, 'd', 'example.net', 'ANY')
+
+    expect(await resolve(serviceWorker, { allow_lists: ['a'], domain_only_lists: ['d'], not_on_allowlist_behavior: 'domain_only' }, 'https://example.net/p', 'T'))
+      .toMatchObject({ url: '', title: '', domain: 'example.net', filtered: true, filtered_by_list: 'd' })
+  })
+
+  test('with not_on_allowlist_behavior domain_only an allowed address is unchanged and a filter list still applies to it', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+    await addListEntry(serviceWorker, 'a', 'example.org', 'ALLOWED')
+    await addListEntry(serviceWorker, 'f', 'example.org', 'news')
+
+    const config = { allow_lists: ['a'], filter_lists: ['f'], not_on_allowlist_behavior: 'domain_only' }
+
+    expect(await resolve(serviceWorker, config, 'https://example.com/p', 'T'))
+      .toMatchObject({ url: 'https://example.com/p', title: 'T', domain: 'example.com', filtered: false, allowed_by_list: 'a' })
+    expect(await resolve(serviceWorker, config, 'https://example.org/p', 'T'))
+      .toMatchObject({ url: 'CATEGORY:news', title: '', domain: '', filtered: true, filtered_by_list: 'f', allowed_by_list: 'a' })
+  })
+
+  test('with not_on_allowlist_behavior domain_only and no allow lists every address is allowed', async ({ serviceWorker }) => {
+    expect(await resolve(serviceWorker, { not_on_allowlist_behavior: 'domain_only' }, 'https://example.edu/p', 'T'))
+      .toMatchObject({ url: 'https://example.edu/p', title: 'T', domain: 'example.edu', filtered: false })
+  })
+
   test('a filter list match replaces the address with its category', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'f', 'hidden.test', 'news')
 

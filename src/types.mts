@@ -2,6 +2,8 @@ import { type ListEntry } from '@bric/rex-lists'
 
 export type OnFailure = 'pass' | 'hide'
 
+export type NotOnAllowlistBehavior = 'category' | 'domain_only'
+
 export interface AddressFields {
   url?: string
   title?: string
@@ -23,6 +25,7 @@ export interface REXContentProcessingRedactionUrlConfiguration {
   filter_lists?: string[]
   domain_only_lists?: string[]
   on_failure?: OnFailure
+  not_on_allowlist_behavior?: NotOnAllowlistBehavior
   record_types?: RecordType[]
 }
 

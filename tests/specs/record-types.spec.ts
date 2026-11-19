@@ -809,6 +809,83 @@ test.describe('settings that are not valid', () => {
   })
 })
 
+test.describe('not_on_allowlist_behavior', () => {
+  const ALLOW_EXAMPLE_COM = { lists: { 'record-allow': [listEntry('example.com', 'ALLOWED', 'domain')] }, allow_lists: ['record-allow'] }
+  const OFF_LIST_VISIT = { name: 'rex-history-visit', url: 'https://www.example.edu/p?q=1', recorded_url: 'https://www.example.edu/p?q=1', title: 'Private', domain: 'example.edu', visit_id: '1', date: 1795015358162 }
+
+  async function warningsNaming(serviceWorker, setting) {
+    return serviceWorker.evaluate((name) => self.__warnings.filter((text) => text.includes(name)).length, setting)
+  }
+
+  async function collectWarnings(serviceWorker) {
+    await serviceWorker.evaluate(() => {
+      const warn = console.warn
+
+      self.__warnings = []
+      console.warn = (...args) => {
+        self.__warnings.push(args.map(String).join(' '))
+        warn(...args)
+      }
+    })
+  }
+
+  test('domain_only blanks the address, its copy and the title of a record on no allow list and keeps the registered domain', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: 'domain_only' })
+
+    const given = withId(OFF_LIST_VISIT)
+    const result = await processed(serviceWorker, given)
+
+    expect(result).toEqual({ ...given, url: '', recorded_url: '', title: '', domain: 'example.edu', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST' })
+  })
+
+  test('domain_only leaves a record on the allow list as it is', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: 'domain_only' })
+
+    const result = await processed(serviceWorker, withId({ name: 'rex-browsing-visit', url: 'https://www.example.com/p', title: 'Kept', domain: 'example.com' }))
+
+    expect(result).toMatchObject({ url: 'https://www.example.com/p', title: 'Kept', domain: 'example.com', filtered: false })
+  })
+
+  test('domain_only blanks an other address on no allow list', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: 'domain_only' })
+
+    const result = await processed(serviceWorker, withId({ name: 'rex-page-event', url: 'https://www.example.com/now', title: 'Now', link_url: 'https://www.example.edu/out' }))
+
+    expect(result).toMatchObject({ url: 'https://www.example.com/now', title: 'Now', domain: 'example.com', link_url: '', filtered: true })
+  })
+
+  test('domain_only keeps the registered domain of a domain-only record type on no allow list', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: 'domain_only' })
+
+    const result = await processed(serviceWorker, skipped('www.example.edu'))
+
+    expect(result.event_details.domain).toBe('example.edu')
+    expect(result.event_details.filtered).toBe(false)
+  })
+
+  test('category replaces the address of a record on no allow list and logs no warning', async ({ serviceWorker }) => {
+    await collectWarnings(serviceWorker)
+    await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: 'category' })
+
+    const result = await processed(serviceWorker, withId(OFF_LIST_VISIT))
+
+    expect(result).toMatchObject({ url: NOT_ON_ALLOWLIST, recorded_url: NOT_ON_ALLOWLIST, title: '', domain: '', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST' })
+    expect(await warningsNaming(serviceWorker, 'not_on_allowlist_behavior')).toBe(0)
+  })
+
+  for (const value of ['Domain_Only', 'domain', true, 4, null]) {
+    test(`a value of ${JSON.stringify(value)} is treated as category and logs a warning`, async ({ serviceWorker }) => {
+      await collectWarnings(serviceWorker)
+      await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: value })
+
+      const result = await processed(serviceWorker, withId(OFF_LIST_VISIT))
+
+      expect(result).toMatchObject({ url: NOT_ON_ALLOWLIST, recorded_url: NOT_ON_ALLOWLIST, title: '', domain: '', filtered: true })
+      expect(await warningsNaming(serviceWorker, 'not_on_allowlist_behavior')).toBeGreaterThan(0)
+    })
+  }
+})
+
 test.describe('an error while handling a matched record', () => {
   function recordThatThrowsOnTitle() {
     const record = { name: 'rex-browsing-visit', url: 'https://hidden.test/p', domain: 'hidden.test' }

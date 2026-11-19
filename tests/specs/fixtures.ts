@@ -111,7 +111,7 @@ export async function waitForModuleConfiguration(serviceWorker, config) {
   }, expected), { timeout: 10000 }).toBe(true)
 }
 
-const REDACTION_FIELDS = ['allow_lists', 'filter_lists', 'domain_only_lists', 'on_failure', 'record_types']
+const REDACTION_FIELDS = ['allow_lists', 'filter_lists', 'domain_only_lists', 'on_failure', 'not_on_allowlist_behavior', 'record_types']
 
 export function listEntry(pattern, category, patternType = 'host') {
   return { pattern, pattern_type: patternType, metadata: { category } }

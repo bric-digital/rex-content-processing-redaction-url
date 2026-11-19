@@ -58,10 +58,13 @@ Rules, in this order:
 | A named list has no entries, or a lookup throws | handled by `on_failure` | handled by `on_failure` | handled by `on_failure` | the record is unchanged, or `CATEGORY:REDACTION_FAILED` under `hide` |
 | On a domain-only list | `''` | `''` | registered domain | `filtered: true`, `filtered_by_list` |
 | Allow lists named, no match | `CATEGORY:NOT_ON_ALLOWLIST` | `''` | `''` | `filtered: true`, `filtered_by_list: "NOT_ON_ALLOWLIST"` |
+| Allow lists named, no match, with `not_on_allowlist_behavior: "domain_only"` | `''` | `''` | registered domain | `filtered: true`, `filtered_by_list: "NOT_ON_ALLOWLIST"` |
 | On a filter list | `CATEGORY:<category>` (`CATEGORY:null` without a category) | `''` | `''` | `filtered: true`, `filtered_by_list`, `allowed_by_list` if any |
 | Otherwise | unchanged | unchanged | registered domain | `filtered: false`, `allowed_by_list` if any |
 
 With no `allow_lists`, every address is allowed. Where the table says registered domain, an address whose host has no registered domain (an IP address such as `192.0.2.7`, or `localhost`) gets the host itself, and an address with no host, such as `about:blank`, gets `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`. The `domain` column applies to every record in the table, whether or not the record arrived with a `domain` field. Before configuration and under `on_failure: "hide"` the domain is `''` too. A record that passes through unchanged (`enabled: false`, a failure under `on_failure: "pass"`, or an address field that is missing or not a string) gains no field.
+
+An address on no allow list is not looked up on the filter lists, under either value of `not_on_allowlist_behavior`. Under `domain_only` it has the same form as a domain-only list match, and `filtered_by_list` tells the two apart: it is `NOT_ON_ALLOWLIST` for an address on no allow list and the list name for a domain-only list match. A domain-only record type carries no list labels, so its two cases look the same: the domain is kept and `filtered` is `false`.
 
 Fields named in `other_addresses` follow the same rules as `url`. Within one list, `rex-lists` matches the most specific pattern type first.
 
@@ -72,10 +75,11 @@ This module reads the `content_processing_redaction_url` section of the configur
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `enabled` | boolean | Yes | none | When `true`, addresses are hidden by the lists below. When `false`, records pass through unchanged. When absent or not a boolean, the section counts as missing. |
-| `allow_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose addresses are kept. Every other address becomes `CATEGORY:NOT_ON_ALLOWLIST`. With no lists, every address is allowed. |
+| `allow_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose addresses are kept. Every other address is handled by `not_on_allowlist_behavior`. With no lists, every address is allowed. |
 | `filter_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose matching addresses become `CATEGORY:<category>`. |
 | `domain_only_lists` | string[] | No | `[]` | Matching addresses lose their address and title and keep their registered domain. |
 | `on_failure` | `pass` or `hide` | No | `pass` | Any other value is treated as `hide`. What happens to a record when a named list has no entries or a lookup fails: `pass` leaves it unchanged, `hide` replaces its addresses with `CATEGORY:REDACTION_FAILED`. |
+| `not_on_allowlist_behavior` | `category` or `domain_only` | No | `category` | Any other value is treated as `category`, and a warning is logged. What happens to an address that is on no allow list: `category` replaces it with `CATEGORY:NOT_ON_ALLOWLIST` and blanks its title and domain, `domain_only` blanks the address and title and keeps the registered domain. |
 | `record_types` | object[] | No | the default record types | Replaces the default record types. When it is not valid, or is an empty array, the defaults are used and a warning is logged; turn the processor off with `enabled: false`. |
 
 `config.sample.json` gives every field at its default.

@@ -91,8 +91,8 @@ async function waitForStoredLists(serviceWorker) {
   }
 }
 
-async function startWithRules(serviceWorker) {
-  const config = { ...configFor(RULES), passive_data_kit: PASSIVE_DATA_KIT }
+async function startWithRules(serviceWorker, rules = RULES) {
+  const config = { ...configFor(rules), passive_data_kit: PASSIVE_DATA_KIT }
 
   await loadConfig(serviceWorker, config)
   await waitForModuleConfiguration(serviceWorker, config)
@@ -129,6 +129,18 @@ test.describe('records the server received', () => {
     expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
     expect(record.title).toBe('')
     expect(record.domain).toBe('')
+  })
+
+  test('with not_on_allowlist_behavior domain_only an address off the allow list arrives with a blank address and title, its registered domain and the not-on-allowlist label', async ({ serviceWorker }) => {
+    await startWithRules(serviceWorker, { ...RULES, not_on_allowlist_behavior: 'domain_only' })
+
+    const record = await visitedRecordOnServer(serviceWorker, OFF_ALLOW_LIST_HOST)
+
+    expect(record.url).toBe('')
+    expect(record.title).toBe('')
+    expect(record.domain).toBe('example.edu')
+    expect(record.filtered).toBe(true)
+    expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
   })
 
   test('an address on a filter list arrives as its category with a blank title and domain', async ({ serviceWorker }) => {
