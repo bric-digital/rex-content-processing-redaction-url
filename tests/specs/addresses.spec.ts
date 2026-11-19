@@ -42,6 +42,7 @@ test.describe('Address configuration', () => {
 
     expect(record.url).toContain('example.org/kept')
     expect(record.filtered).toBe(false)
+    expect('domain' in record).toBe(false)
   })
 
   test('an address off the allow list is replaced', async ({ serviceWorker }) => {
@@ -53,7 +54,7 @@ test.describe('Address configuration', () => {
     expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
     expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
     expect(record.title).toBe('')
-    expect(record.domain).toBe('')
+    expect('domain' in record).toBe(false)
   })
 
   test('an empty allow list keeps the address', async ({ serviceWorker }) => {

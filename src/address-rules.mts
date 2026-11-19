@@ -63,6 +63,7 @@ function domainOnlyResult(match: ListMatch, domain: string): AddressResult {
     domain,
     filtered: true,
     failed: false,
+    domain_only_match: true,
     filtered_by_list: match.listName,
     filtered_by_list_entry: match.entry,
   }

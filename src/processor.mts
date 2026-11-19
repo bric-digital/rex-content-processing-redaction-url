@@ -1,5 +1,5 @@
 import { REXContentProcessor } from '@bric/rex-content-processing/library'
-import { listsLoaded } from '@bric/rex-lists'
+import { listsLoaded } from '@bric/rex-lists/service-worker'
 
 import { type AddressRecord, applyMainResult, applyOtherResult } from './apply-result.mjs'
 import { resolveAddress } from './address-rules.mjs'
@@ -178,7 +178,7 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
 
     if (this.warnedListsNotLoaded === false) {
       this.warnedListsNotLoaded = true
-      console.warn(`${LOG_PREFIX} lists are named in the configuration and none have loaded; the extension must import @bric/rex-lists/service-worker`)
+      console.warn(`${LOG_PREFIX} lists are named in the configuration and have not finished loading; addresses are hidden until they have`)
     }
 
     return false

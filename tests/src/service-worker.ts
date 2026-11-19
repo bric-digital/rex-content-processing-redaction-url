@@ -6,8 +6,8 @@ import rexCorePlugin, {
   REXServiceWorkerModule,
 } from '@bric/rex-core/service-worker'
 import { REXContentProcessorManager } from '@bric/rex-content-processing/library'
-import { createListEntry, listsLoaded } from '@bric/rex-lists'
-import rexListsPlugin from '@bric/rex-lists/service-worker'
+import { createListEntry } from '@bric/rex-lists'
+import rexListsPlugin, { listsLoaded } from '@bric/rex-lists/service-worker'
 import rexPageEventsPlugin from '@bric/rex-page-events/service-worker'
 import rexContentProcessingUrlRedactionPlugin from '@bric/rex-content-processing-url-redaction/service-worker'
 import { resolveAddress } from '../../src/address-rules.mts'

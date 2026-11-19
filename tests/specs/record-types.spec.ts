@@ -200,6 +200,39 @@ test.describe('default record types', () => {
   })
 })
 
+test.describe('a domain field the record does not have', () => {
+  const DOMAIN_ONLY_EXAMPLE = { lists: { 'record-domain-only': [listEntry('example.com', 'ANY', 'domain')] }, domain_only_lists: ['record-domain-only'] }
+
+  for (const name of ['rex-page-event', 'rex-browsing-opener']) {
+    test(`${name}: is not added when nothing is hidden`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+      const result = await processed(serviceWorker, withId({ name, url: `${ALLOWED}/p` }))
+
+      expect(result.url).toBe(`${ALLOWED}/p`)
+      expect('domain' in result).toBe(false)
+    })
+
+    test(`${name}: is not added when the address is off the allow list`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+      const result = await processed(serviceWorker, withId({ name, url: `${HIDDEN}/p` }))
+
+      expect(result.url).toBe(NOT_ON_ALLOWLIST)
+      expect('domain' in result).toBe(false)
+    })
+
+    test(`${name}: is added with the registered domain on a domain-only match`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, DOMAIN_ONLY_EXAMPLE)
+
+      const result = await processed(serviceWorker, withId({ name, url: 'https://mail.example.com/p' }))
+
+      expect(result.url).toBe('')
+      expect(result.domain).toBe('example.com')
+    })
+  }
+})
+
 test.describe('states', () => {
   test('before startWith is called the address is hidden', async ({ serviceWorker }) => {
     const given = withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test', visit_time: 5 })

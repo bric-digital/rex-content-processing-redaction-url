@@ -34,7 +34,9 @@ export function applyMainResult(record: AddressRecord, urlField: string, fields:
   }
 
   if (fields.domain !== undefined) {
-    record[fields.domain] = result.domain
+    if (fields.domain in record || result.domain_only_match === true) {
+      record[fields.domain] = result.domain
+    }
   }
 
   writeLabels(record, result)

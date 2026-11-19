@@ -8,7 +8,7 @@ Collectors store records as they arrive, so a record that carries a web address 
 
 - A record is processed when its `name` (and its `event_name`, if the record type has one) matches a record type. Every other record passes through unchanged. The default record types are `rex-history-visit`, `rex-history-visit-aggregate`, `rex-page-event`, `rex-browsing-visit`, `rex-browsing-opener`, `rex-browsing-page` and the `pdk-app-event` visit ceiling events of `rex-history` and `rex-browsing` and its `rex-history-skipped` event.
 - A record is never dropped and no field is removed. Only the address fields named by its record type change, together with `filtered` and the list labels.
-- Before the configuration arrives, every address becomes `CATEGORY:NO_CONFIGURATION`. When the configuration names lists and `rex-lists` has not loaded them, every address becomes `CATEGORY:NO_CONFIGURATION` too. When it names no list, the rules run at once and every address is allowed.
+- Before the configuration arrives, every address becomes `CATEGORY:NO_CONFIGURATION`. When the configuration names lists and `rex-lists` has not finished loading the lists of the current configuration, every address becomes `CATEGORY:NO_CONFIGURATION` too; this includes the moments after a configuration change that alters lists. When it names no list, the rules run at once and every address is allowed.
 - When a list named in the configuration has no entries, or a lookup fails, the record passes through unchanged unless `on_failure` is `hide`, which replaces its addresses with `CATEGORY:REDACTION_FAILED`.
 - A record whose address field is missing or is not a string passes through unchanged.
 - Only an explicit `enabled: false` turns the processor off: records then pass through unchanged. With a missing section, a section that is `null`, not an object or an array, or an object whose `enabled` is absent or not a boolean (a warning is logged when it is present), the processor is on and hides every address with `CATEGORY:NO_CONFIGURATION`, even after an earlier valid section. With `enabled: true` the rules apply.
@@ -36,7 +36,7 @@ A record type says which fields of a record hold addresses:
 
 - `url`: the field holding the record's address. Its value decides `domain`, `title` and the list labels.
 - `title`: written only when the record has it.
-- `domain`: the registered domain, or `''` when the address is hidden; written whenever the type names it.
+- `domain`: the registered domain, or `''` when the address is hidden. It is written when the record has the field. A record without the field gains it only on a domain-only match, with the registered domain; otherwise it still has no `domain`.
 - `copies`: fields set to the same value as `url` in every state, such as `recorded_url`.
 - `other_addresses`: fields each resolved on its own by the same rules and replaced by the result. When any of them was changed, `filtered` is `true`. An entry that is absent or not a string is skipped.
 - `event_name`: restricts the type to records with that `event_name`.
@@ -61,7 +61,7 @@ Rules, in this order:
 | On a filter list | `CATEGORY:<category>` (`CATEGORY:null` without a category) | `''` | `''` | `filtered: true`, `filtered_by_list`, `allowed_by_list` if any |
 | Otherwise | unchanged | unchanged | registered domain | `filtered: false`, `allowed_by_list` if any |
 
-With no `allow_lists`, every address is allowed. The registered domain of an IP address or `localhost` is `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`.
+With no `allow_lists`, every address is allowed. The registered domain of an IP address or `localhost` is `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`. The `domain` column applies to a record that has a `domain` field, and to a domain-only match, which adds one.
 
 Fields named in `other_addresses` follow the same rules as `url`. Within one list, `rex-lists` matches the most specific pattern type first.
 
@@ -83,7 +83,7 @@ This module reads the `content_processing_url_redaction` section of the configur
 With `enabled: true`, a record is handled in one of three states:
 
 1. The configuration names no list in `allow_lists`, `filter_lists` or `domain_only_lists`: the rules run without waiting for `rex-lists`, and every address is allowed.
-2. The configuration names at least one list and `rex-lists` has not finished loading its lists: every address becomes `CATEGORY:NO_CONFIGURATION`. The first time this happens after a configuration is applied, a warning says that the extension must import `@bric/rex-lists/service-worker`.
+2. The configuration names at least one list and `rex-lists` has not finished loading the lists of the current configuration, including the moments after a configuration change that alters lists: every address becomes `CATEGORY:NO_CONFIGURATION`. The first time this happens after a configuration is applied, a warning is logged.
 3. The configuration names at least one list and `rex-lists` has loaded its lists: the rules run. A named list with no entries is a failure, handled by `on_failure`.
 
 Only an explicit `enabled: false` turns the processor off. Whenever a configuration arrives whose section is missing, empty, not an object, or has an `enabled` that is not a boolean, the processor is on and hides every address with `CATEGORY:NO_CONFIGURATION`, whatever an earlier section said.
