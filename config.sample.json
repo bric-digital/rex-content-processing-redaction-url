@@ -3,6 +3,7 @@
     "enabled": true,
     "allow_lists": [],
     "filter_lists": [],
-    "domain_only_lists": []
+    "domain_only_lists": [],
+    "on_failure": "pass"
   }
 }

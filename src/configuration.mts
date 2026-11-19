@@ -2,9 +2,11 @@ export const CONFIGURATION_KEY = 'content_processing_url_redaction'
 
 export const CONFIGURATION_DETAILS = {
   [CONFIGURATION_KEY]: {
-    enabled: 'Boolean. When true, addresses in rex-page-event and rex-browsing records are hidden by the lists below. When false, records pass through unchanged. Until the configuration arrives, every address becomes CATEGORY:NO_CONFIGURATION.',
+    enabled: 'Boolean. When true, addresses in records of the configured record types are hidden by the lists below. When false, records pass through unchanged. Until the configuration arrives and rex-lists has loaded its lists, every address becomes CATEGORY:NO_CONFIGURATION.',
     allow_lists: 'Array of rex-lists list names, optional. Addresses on these lists keep their address; every other address becomes CATEGORY:NOT_ON_ALLOWLIST. With no allow lists, every address is allowed. Default [].',
     filter_lists: 'Array of rex-lists list names, optional. Matching addresses become CATEGORY:<category>. Default [].',
     domain_only_lists: 'Array of rex-lists list names, optional. Matching addresses lose their address and title and keep their registered domain. Takes precedence over the other lists. Default [].',
+    on_failure: 'String, optional: pass or hide. What happens to a record when a list named above has no entries or a lookup fails. pass leaves the record unchanged; hide replaces its addresses with CATEGORY:REDACTION_FAILED. Default pass.',
+    record_types: 'Array of record types, optional. Each has name, optional event_name, and fields: url (the field holding the address), and optionally title, domain, copies (fields set to the same value as url) and other_addresses (fields each resolved on their own). When present it replaces the default record types.',
   },
 }

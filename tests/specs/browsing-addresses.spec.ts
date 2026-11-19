@@ -1,21 +1,9 @@
 // @ts-nocheck
 
-import { test, expect, startWith } from './fixtures.js'
+import { test, expect, listEntry, startWith } from './fixtures.js'
 
 const ALLOWED = 'https://kept.test'
 const HIDDEN = 'https://hidden.test'
-
-async function addListEntry(serviceWorker, listName, host, category) {
-  await serviceWorker.evaluate(async ({ listName, host, category }) => {
-    await self.createListEntry({
-      list_name: listName,
-      pattern: host,
-      pattern_type: 'host',
-      source: 'backend',
-      metadata: { category },
-    })
-  }, { listName, host, category })
-}
 
 function visit(overrides = {}) {
   return {
@@ -52,8 +40,7 @@ const KEPT_FIELDS = ['visit_id', 'referring_visit_id', 'visit_time', 'date', 'tr
 
 test.describe('rex-browsing-visit addresses', () => {
   test('an address off the allow list is replaced, its title and domain are blanked and the rest stays', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-    await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+    await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
     const given = visit()
     const record = await processed(serviceWorker, given)
@@ -70,8 +57,7 @@ test.describe('rex-browsing-visit addresses', () => {
   })
 
   test('an address on the allow list keeps its address, title and domain', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-    await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+    await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
     const record = await processed(serviceWorker, visit({ url: `${ALLOWED}/page`, title: 'Kept', domain: 'kept.test' }))
 
@@ -83,8 +69,7 @@ test.describe('rex-browsing-visit addresses', () => {
   })
 
   test('a filter list replaces the address with its category', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'browsing-filter', 'hidden.test', 'EMAIL')
-    await startWith(serviceWorker, { filter_lists: ['browsing-filter'] })
+    await startWith(serviceWorker, { lists: { 'browsing-filter': [listEntry('hidden.test', 'EMAIL')] }, filter_lists: ['browsing-filter'] })
 
     const record = await processed(serviceWorker, visit())
 
@@ -95,8 +80,7 @@ test.describe('rex-browsing-visit addresses', () => {
   })
 
   test('a domain-only list hides the address and the title and keeps the registered domain', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'browsing-domain-only', 'hidden.test', 'ANY')
-    await startWith(serviceWorker, { domain_only_lists: ['browsing-domain-only'] })
+    await startWith(serviceWorker, { lists: { 'browsing-domain-only': [listEntry('hidden.test', 'ANY')] }, domain_only_lists: ['browsing-domain-only'] })
 
     const record = await processed(serviceWorker, visit())
 
@@ -142,8 +126,7 @@ test.describe('rex-browsing-visit addresses', () => {
 
 test.describe('rex-browsing-visit records without a usable address', () => {
   test('a numeric url passes through unchanged', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-    await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+    await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
     const given = visit({ visit_id: '61', url: 12345 })
 
@@ -151,8 +134,7 @@ test.describe('rex-browsing-visit records without a usable address', () => {
   })
 
   test('a missing url passes through unchanged', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-    await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+    await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
     const { url, ...given } = visit({ visit_id: '62' })
 
@@ -161,8 +143,7 @@ test.describe('rex-browsing-visit records without a usable address', () => {
 
   for (const [label, address] of [['an empty', ''], ['an invalid', 'not a url']]) {
     test(`${label} url keeps its url and title`, async ({ serviceWorker }) => {
-      await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-      await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+      await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
       const given = visit({ visit_id: '63', url: address })
       const record = await processed(serviceWorker, given)
@@ -181,8 +162,7 @@ test.describe('rex-browsing-visit records without a usable address', () => {
 test.describe('other rex-browsing records', () => {
   for (const name of ['rex-browsing-opener', 'rex-browsing-page']) {
     test(`${name}: an address off the allow list is replaced and marked filtered`, async ({ serviceWorker }) => {
-      await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-      await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+      await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
       const record = await processed(serviceWorker, { name, url: `${HIDDEN}/first`, visit_id: '51', referring_visit_id: '50', visit_time: 1795015358162, date: 1795015358162, transition: 'link' })
 
@@ -194,8 +174,7 @@ test.describe('other rex-browsing records', () => {
     })
 
     test(`${name}: an address on the allow list is kept`, async ({ serviceWorker }) => {
-      await addListEntry(serviceWorker, 'browsing-allow', 'kept.test', 'ALLOWED')
-      await startWith(serviceWorker, { allow_lists: ['browsing-allow'] })
+      await startWith(serviceWorker, { lists: { 'browsing-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['browsing-allow'] })
 
       const record = await processed(serviceWorker, { name, url: `${ALLOWED}/first`, visit_id: '52', visit_time: 1795015358162, date: 1795015358162 })
 

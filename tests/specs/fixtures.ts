@@ -51,7 +51,7 @@ export const expect = test.expect;
 
 export const BASE_CONFIG = {
   configuration_url: 'config.json',
-  identifier: 'rex-page-events-test',
+  identifier: 'rex-content-processing-url-redaction-test',
   page_events: {
     enabled: true,
     allow_all: true,
@@ -108,7 +108,11 @@ export async function waitForModuleConfiguration(serviceWorker, config) {
   }, expected), { timeout: 10000 }).toBe(true)
 }
 
-const REDACTION_FIELDS = ['allow_lists', 'filter_lists', 'domain_only_lists']
+const REDACTION_FIELDS = ['allow_lists', 'filter_lists', 'domain_only_lists', 'on_failure', 'record_types']
+
+export function listEntry(pattern, category, patternType = 'host') {
+  return { pattern, pattern_type: patternType, metadata: { category } }
+}
 
 export function configFor(pageEvents = {}) {
   const pageEventsConfig = { enabled: true, allow_all: true }
@@ -124,7 +128,18 @@ export function configFor(pageEvents = {}) {
     }
   }
 
-  return { ...BASE_CONFIG, page_events: pageEventsConfig, content_processing_url_redaction: redactionConfig }
+  const config = { ...BASE_CONFIG, page_events: pageEventsConfig, content_processing_url_redaction: redactionConfig }
+
+  if (pageEvents.lists !== null) {
+    config.lists = pageEvents.lists ?? {}
+  }
+
+  return config
+}
+
+export async function waitForListsLoaded(serviceWorker) {
+  await serviceWorker.evaluate(() => self.rexListsPlugin.refreshConfiguration())
+  await expect.poll(() => serviceWorker.evaluate(() => self.listsLoaded()), { timeout: 10000 }).toBe(true)
 }
 
 export async function startWith(serviceWorker, pageEvents = {}) {
@@ -132,6 +147,11 @@ export async function startWith(serviceWorker, pageEvents = {}) {
 
   await loadConfig(serviceWorker, config)
   await waitForModuleConfiguration(serviceWorker, config)
+
+  if (config.lists !== undefined) {
+    await waitForListsLoaded(serviceWorker)
+  }
+
   await resetCaptured(serviceWorker)
 }
 

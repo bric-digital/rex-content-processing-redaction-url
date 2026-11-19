@@ -1,21 +1,9 @@
 // @ts-nocheck
 
-import { test, expect, BASE_CONFIG, loadConfig, resetCaptured, startWith, waitForModuleConfiguration } from './fixtures.js'
+import { test, expect, BASE_CONFIG, listEntry, loadConfig, resetCaptured, startWith, waitForModuleConfiguration } from './fixtures.js'
 
 function configWith(pageEvents) {
   return { ...BASE_CONFIG, page_events: { enabled: true, ...pageEvents } }
-}
-
-async function addListEntry(serviceWorker, listName, host, category) {
-  await serviceWorker.evaluate(async ({ listName, host, category }) => {
-    await self.createListEntry({
-      list_name: listName,
-      pattern: host,
-      pattern_type: 'host',
-      source: 'backend',
-      metadata: { category },
-    })
-  }, { listName, host, category })
 }
 
 async function openTab(serviceWorker, url) {
@@ -57,8 +45,7 @@ test.describe('Address configuration', () => {
   })
 
   test('an address off the allow list is replaced', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'test-allow', 'example.com', 'ALLOWED')
-    await start(serviceWorker, configWith({ allow_lists: ['test-allow'] }))
+    await start(serviceWorker, configWith({ lists: { 'test-allow': [listEntry('example.com', 'ALLOWED')] }, allow_lists: ['test-allow'] }))
 
     const tabId = await openTab(serviceWorker, 'https://example.org/hidden')
     const record = await tabOpenRecord(serviceWorker, tabId)
@@ -79,8 +66,7 @@ test.describe('Address configuration', () => {
   })
 
   test('a filter list applies when there are no allow lists', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'test-filter', 'example.com', 'TEST_FILTERED')
-    await start(serviceWorker, configWith({ filter_lists: ['test-filter'] }))
+    await start(serviceWorker, configWith({ lists: { 'test-filter': [listEntry('example.com', 'TEST_FILTERED')] }, filter_lists: ['test-filter'] }))
 
     const filteredTabId = await openTab(serviceWorker, 'https://example.com/private')
     const filtered = await tabOpenRecord(serviceWorker, filteredTabId)
@@ -93,8 +79,7 @@ test.describe('Address configuration', () => {
   })
 
   test('a domain-only list hides the address and the title', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'test-domain-only', 'example.net', 'TEST_DOMAIN')
-    await start(serviceWorker, configWith({ domain_only_lists: ['test-domain-only'] }))
+    await start(serviceWorker, configWith({ lists: { 'test-domain-only': [listEntry('example.net', 'TEST_DOMAIN')] }, domain_only_lists: ['test-domain-only'] }))
 
     const tabId = await openTab(serviceWorker, 'https://example.net/page')
     const record = await tabOpenRecord(serviceWorker, tabId)
@@ -105,9 +90,7 @@ test.describe('Address configuration', () => {
   })
 
   test('a domain-only list takes precedence over a filter list', async ({ serviceWorker }) => {
-    await addListEntry(serviceWorker, 'test-both-filter', 'example.edu', 'TEST_FILTERED')
-    await addListEntry(serviceWorker, 'test-both-domain-only', 'example.edu', 'TEST_DOMAIN')
-    await start(serviceWorker, configWith({
+    await start(serviceWorker, configWith({ lists: { 'test-both-filter': [listEntry('example.edu', 'TEST_FILTERED')], 'test-both-domain-only': [listEntry('example.edu', 'TEST_DOMAIN')] },
       filter_lists: ['test-both-filter'],
       domain_only_lists: ['test-both-domain-only'],
     }))
@@ -164,13 +147,12 @@ test.describe('Addresses of the previous page and the opener', () => {
   const ALLOWED = 'https://kept.test'
   const HIDDEN = 'https://hidden.test'
 
-  for (const { field, filteredField, eventType } of [
-    { field: 'previous_url', filteredField: 'previous_url_filtered', eventType: 'tab_url_change' },
-    { field: 'opener_url', filteredField: 'opener_filtered', eventType: 'tab_open' },
+  for (const { field, eventType } of [
+    { field: 'previous_url', eventType: 'tab_url_change' },
+    { field: 'opener_url', eventType: 'tab_open' },
   ]) {
-    test(`${field} off the allow list is replaced and marked filtered`, async ({ serviceWorker }) => {
-      await addListEntry(serviceWorker, 'related-allow', 'kept.test', 'ALLOWED')
-      await startWith(serviceWorker, { allow_lists: ['related-allow'] })
+    test(`${field} off the allow list is replaced`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, { lists: { 'related-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['related-allow'] })
 
       const record = await dispatchedRecord(serviceWorker, {
         name: 'rex-page-event', event_type: eventType, tab_id: 701, url: `${ALLOWED}/now`, title: 'Now', [field]: `${HIDDEN}/before`,
@@ -178,19 +160,18 @@ test.describe('Addresses of the previous page and the opener', () => {
 
       expect(record.url).toBe(`${ALLOWED}/now`)
       expect(record[field]).toBe('CATEGORY:NOT_ON_ALLOWLIST')
-      expect(record[filteredField]).toBe(true)
+      expect(record.filtered).toBe(true)
     })
 
-    test(`${field} on the allow list is kept and marked not filtered`, async ({ serviceWorker }) => {
-      await addListEntry(serviceWorker, 'related-allow', 'kept.test', 'ALLOWED')
-      await startWith(serviceWorker, { allow_lists: ['related-allow'] })
+    test(`${field} on the allow list is kept`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, { lists: { 'related-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['related-allow'] })
 
       const record = await dispatchedRecord(serviceWorker, {
         name: 'rex-page-event', event_type: eventType, tab_id: 702, url: `${ALLOWED}/now`, title: 'Now', [field]: `${ALLOWED}/before`,
       })
 
       expect(record[field]).toBe(`${ALLOWED}/before`)
-      expect(record[filteredField]).toBe(false)
+      expect(record.filtered).toBe(false)
     })
   }
 })
