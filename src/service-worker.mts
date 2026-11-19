@@ -34,11 +34,13 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
   }
 
   private applyConfiguration(configuration: REXConfiguration | undefined) {
-    const redactionConfig = configuration?.[CONFIGURATION_KEY] as REXContentProcessingUrlRedactionConfiguration | undefined
+    const section = configuration?.[CONFIGURATION_KEY]
 
-    if (redactionConfig === undefined) {
+    if (typeof section !== 'object' || section === null) {
       return
     }
+
+    const redactionConfig = section as REXContentProcessingUrlRedactionConfiguration
 
     this.config = redactionConfig
 

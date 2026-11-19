@@ -6,7 +6,7 @@ REX content processor that hides web addresses in records by allow, filter and d
 
 Collectors store records as they arrive, so a record that carries a web address stores it unless something changes it first. This module registers a `REXContentProcessor` with `rex-content-processing`. A collector that runs content processors on each record before storing it, such as `rex-data-collection` (and so `rex-local-download`), stores the addresses as this processor leaves them. An extension that does not include this module sends unredacted addresses.
 
-- A record is processed when its `name` (and its `event_name`, if the record type has one) matches a record type. Every other record passes through unchanged. The default record types are `rex-history-visit`, `rex-history-visit-aggregate`, `rex-page-event`, `rex-browsing-visit`, `rex-browsing-opener`, `rex-browsing-page` and the `pdk-app-event` visit ceiling and skipped events of `rex-history` and `rex-browsing`.
+- A record is processed when its `name` (and its `event_name`, if the record type has one) matches a record type. Every other record passes through unchanged. The default record types are `rex-history-visit`, `rex-history-visit-aggregate`, `rex-page-event`, `rex-browsing-visit`, `rex-browsing-opener`, `rex-browsing-page` and the `pdk-app-event` visit ceiling events of `rex-history` and `rex-browsing` and its `rex-history-skipped` event.
 - A record is never dropped and no field is removed. Only the address fields named by its record type change, together with `filtered` and the list labels.
 - Before the configuration arrives, and while `rex-lists` has not yet loaded its lists, every address becomes `CATEGORY:NO_CONFIGURATION`.
 - When a list named in the configuration has no entries, or a lookup fails, the record passes through unchanged unless `on_failure` is `hide`, which replaces its addresses with `CATEGORY:REDACTION_FAILED`.
@@ -41,7 +41,7 @@ A record type says which fields of a record hold addresses:
 - `event_name`: restricts the type to records with that `event_name`.
 - `container`: the name of an object field of the record that holds the fields above, such as `event_details`. The object is copied, and `filtered` and the list labels are written inside it. A record whose container is not an object passes through unchanged.
 
-A type with `domain` and no `url` is a domain-only record. When its domain is a non-empty string, `https://<domain>/` is resolved by the same rules and only `domain` is written: it stays when the address is allowed or on a domain-only list and becomes `''` when the address is replaced. `filtered` is `true` when the domain was blanked. Before configuration, or under `on_failure: "hide"` after a failure, the domain becomes `''`. A domain that does not form a valid address, such as `not available`, is left as it was with `filtered: false`. The visit ceiling and skipped events of `rex-history` and `rex-browsing` are covered this way by default. A domain-only type is judged as `https://<domain>/`, so a filter entry narrower than a registered domain does not blank it.
+A type with `domain` and no `url` is a domain-only record. When its domain is a non-empty string, `https://<domain>/` is resolved by the same rules and only `domain` is written: it stays when the address is allowed or on a domain-only list and becomes `''` when the address is replaced. `filtered` is `true` when the domain was blanked. Before configuration, or under `on_failure: "hide"` after a failure, the domain becomes `''`. The domain is judged by the hostname it parses to, so `blocked.com/x` and `user@blocked.com` are judged as `blocked.com`. A domain with no usable hostname, such as `not available`, is left as it was with `filtered: false` in every state. The visit ceiling events of `rex-history` and `rex-browsing`, and the `rex-history-skipped` event, are covered this way by default. A domain-only type is judged as `https://<domain>/`, so a filter entry narrower than a registered domain does not blank it.
 
 A label field the record already has (`filtered_by_list`, `allowed_by_list` and their `_entry` fields) is written as `''` when the result does not provide it, so no stale label stays. A label the record does not have is not added.
 
@@ -75,7 +75,7 @@ This module reads the `content_processing_url_redaction` section of the configur
 | `filter_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose matching addresses become `CATEGORY:<category>`. |
 | `domain_only_lists` | string[] | No | `[]` | Matching addresses lose their address and title and keep their registered domain. |
 | `on_failure` | `pass` or `hide` | No | `pass` | Any other value is treated as `hide`. What happens to a record when a named list has no entries or a lookup fails: `pass` leaves it unchanged, `hide` replaces its addresses with `CATEGORY:REDACTION_FAILED`. |
-| `record_types` | object[] | No | the default record types | Replaces the default record types. When it is not valid, the defaults are used and a warning is logged. |
+| `record_types` | object[] | No | the default record types | Replaces the default record types. When it is not valid, or is an empty array, the defaults are used and a warning is logged; turn the processor off with `enabled: false`. |
 
 `config.sample.json` gives every field at its default.
 

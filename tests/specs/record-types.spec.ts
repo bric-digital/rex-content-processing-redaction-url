@@ -693,3 +693,79 @@ test.describe('other addresses before configuration', () => {
     expect(result.opener_url).toBe(4)
   })
 })
+
+test.describe('a domain-only type judges the parsed hostname', () => {
+  const record_types = [{ name: 'custom-domain', fields: { domain: 'site' } }]
+  const BLOCKED_ALLOW = { lists: { 'record-allow': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['record-allow'], record_types }
+
+  for (const value of ['blocked.com/x', 'u@blocked.com', 'blocked.com\t']) {
+    test(`${JSON.stringify(value)} off the allow list is blanked`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, BLOCKED_ALLOW)
+
+      const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: value, kept: 1 }))
+
+      expect(result.site).toBe('')
+      expect(result.filtered).toBe(true)
+      expect(result.kept).toBe(1)
+    })
+
+    test(`${JSON.stringify(value)} before configuration is blanked`, async ({ serviceWorker }) => {
+      await serviceWorker.evaluate((types) => {
+        self.rexContentProcessingUrlRedactionPlugin.processor.config = { enabled: true, record_types: types }
+      }, record_types)
+
+      const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: value }))
+
+      expect(result.site).toBe('')
+      expect(result.filtered).toBe(true)
+    })
+  }
+
+  test('a value with no usable hostname is left as it was in every state', async ({ serviceWorker }) => {
+    await serviceWorker.evaluate((types) => {
+      self.rexContentProcessingUrlRedactionPlugin.processor.config = { enabled: true, record_types: types }
+    }, record_types)
+
+    const before = await processed(serviceWorker, withId({ name: 'custom-domain', site: 'not available' }))
+
+    expect(before.site).toBe('not available')
+    expect(before.filtered).toBe(false)
+
+    await startWith(serviceWorker, { ...BLOCKED_ALLOW, on_failure: 'hide' })
+
+    const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: 'not available' }))
+
+    expect(result.site).toBe('not available')
+    expect(result.filtered).toBe(false)
+  })
+})
+
+test.describe('settings that cannot be used', () => {
+  test('record_types as an empty array uses the default record types', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, record_types: [] })
+
+    const result = await processed(serviceWorker, withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }))
+
+    expect(result.url).toBe(NOT_ON_ALLOWLIST)
+  })
+
+  for (const section of [null, 'text', 4]) {
+    test(`a module section of ${JSON.stringify(section)} does not throw and leaves addresses hidden`, async ({ serviceWorker }) => {
+      const threw = await serviceWorker.evaluate((value) => {
+        try {
+          self.rexContentProcessingUrlRedactionPlugin.applyConfiguration({ content_processing_url_redaction: value })
+
+          return false
+        } catch {
+          return true
+        }
+      }, section)
+
+      expect(threw).toBe(false)
+
+      const result = await processed(serviceWorker, withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }))
+
+      expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+    })
+  }
+})

@@ -87,8 +87,14 @@ function domainAfter(record: AddressRecord, domainField: string, result: Address
   return { ...record, [domainField]: result.domain, filtered: false }
 }
 
-function isHostLike(domain: string): boolean {
-  return /^[^\s/?#@\\]+$/.test(domain)
+function hostnameOf(domain: string): string | null {
+  try {
+    const hostname = new URL(`https://${domain}/`).hostname
+
+    return hostname === '' || hostname.includes('%') ? null : hostname
+  } catch {
+    return null
+  }
 }
 
 function scopeOf(record: AddressRecord, type: RecordType): AddressRecord | null {
@@ -222,7 +228,9 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
   }
 
   private async redactDomain(scope: AddressRecord, domainField: string, domain: string): Promise<AddressRecord | null> {
-    if (isHostLike(domain) === false) {
+    const hostname = hostnameOf(domain)
+
+    if (hostname === null) {
       return { ...scope, filtered: false }
     }
 
@@ -232,7 +240,7 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
       return hideDomain(scope, domainField)
     }
 
-    const result = await resolveAddress(config, `https://${domain}/`, '')
+    const result = await resolveAddress(config, `https://${hostname}/`, '')
 
     if (result.failed) {
       return config.on_failure === 'hide' ? hideDomain(scope, domainField) : null

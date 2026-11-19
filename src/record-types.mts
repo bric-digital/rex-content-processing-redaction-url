@@ -59,7 +59,7 @@ export function recordTypesToUse(configured: unknown): RecordType[] {
     return DEFAULT_RECORD_TYPES
   }
 
-  if (Array.isArray(configured) && configured.every(isValidRecordType)) {
+  if (Array.isArray(configured) && configured.length > 0 && configured.every(isValidRecordType)) {
     return configured as RecordType[]
   }
 
