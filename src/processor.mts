@@ -146,11 +146,42 @@ async function listsAreLoaded(): Promise<boolean> {
   }
 }
 
+function hasNames(names: string[] | undefined): boolean {
+  return Array.isArray(names) && names.length > 0
+}
+
+function namesAnyList(config: REXContentProcessingUrlRedactionConfiguration): boolean {
+  return hasNames(config.allow_lists) || hasNames(config.filter_lists) || hasNames(config.domain_only_lists)
+}
+
 export class REXContentProcessingUrlRedactionProcessor extends REXContentProcessor {
   config: REXContentProcessingUrlRedactionConfiguration | null = null
+  warnedListsNotLoaded = false
 
   name(): string {
     return 'REXContentProcessingUrlRedactionProcessor'
+  }
+
+  useConfiguration(config: REXContentProcessingUrlRedactionConfiguration | null) {
+    this.config = config
+    this.warnedListsNotLoaded = false
+  }
+
+  private async readyToApplyRules(config: REXContentProcessingUrlRedactionConfiguration): Promise<boolean> {
+    if (namesAnyList(config) === false) {
+      return true
+    }
+
+    if (await listsAreLoaded() === true) {
+      return true
+    }
+
+    if (this.warnedListsNotLoaded === false) {
+      this.warnedListsNotLoaded = true
+      console.warn(`${LOG_PREFIX} lists are named in the configuration and none have loaded; the extension must import @bric/rex-lists/service-worker`)
+    }
+
+    return false
   }
 
   async processContent(content: unknown): Promise<unknown> {
@@ -213,7 +244,7 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
   private async redactAddresses(scope: AddressRecord, urlField: string, fields: AddressFields): Promise<AddressRecord | null> {
     const config = this.config
 
-    if (config === null || await listsAreLoaded() === false) {
+    if (config === null || await this.readyToApplyRules(config) === false) {
       return hideAddresses(scope, urlField, fields, NO_CONFIGURATION)
     }
 
@@ -235,7 +266,7 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
 
     const config = this.config
 
-    if (config === null || await listsAreLoaded() === false) {
+    if (config === null || await this.readyToApplyRules(config) === false) {
       return hideDomain(scope, domainField)
     }
 

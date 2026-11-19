@@ -25,19 +25,28 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
     return CONFIGURATION_DETAILS
   }
 
-  refreshConfiguration() {
-    rexCorePlugin.handleMessage({
-      messageType: 'waitForConfiguration',
-      event: { timeout: CONFIGURATION_TIMEOUT_MS }
-    }, null, (configuration: REXConfiguration) => {
-      this.applyConfiguration(configuration)
+  refreshConfiguration(): Promise<void> {
+    return new Promise((resolve) => {
+      rexCorePlugin.handleMessage({
+        messageType: 'waitForConfiguration',
+        event: { timeout: CONFIGURATION_TIMEOUT_MS }
+      }, null, (configuration: REXConfiguration) => {
+        this.applyConfiguration(configuration)
+        resolve()
+      })
     })
   }
 
   private applyConfiguration(configuration: REXConfiguration | undefined) {
-    const section = configuration?.[CONFIGURATION_KEY]
+    if (configuration === undefined || configuration === null) {
+      return
+    }
+
+    const section = configuration[CONFIGURATION_KEY]
 
     if (typeof section !== 'object' || section === null || Array.isArray(section)) {
+      this.hideEveryAddress()
+
       return
     }
 
@@ -48,17 +57,25 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
         console.warn(`${LOG_PREFIX} enabled is not true or false, treating the configuration as missing`)
       }
 
+      this.hideEveryAddress()
+
       return
     }
 
     this.config = redactionConfig
 
     if (redactionConfig.enabled === true) {
-      this.processor.config = normalizeConfiguration(redactionConfig)
+      this.processor.useConfiguration(normalizeConfiguration(redactionConfig))
       this.processor.enable()
     } else {
       this.processor.disable()
     }
+  }
+
+  private hideEveryAddress() {
+    this.config = null
+    this.processor.useConfiguration(null)
+    this.processor.enable()
   }
 }
 

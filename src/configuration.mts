@@ -26,7 +26,7 @@ export const CONFIGURATION_KEY = 'content_processing_url_redaction'
 
 export const CONFIGURATION_DETAILS = {
   [CONFIGURATION_KEY]: {
-    enabled: 'Boolean, required. When true, addresses in records of the configured record types are hidden by the lists below. When false, records pass through unchanged. When absent or not a boolean, the section is treated as missing. Until the configuration arrives and rex-lists has loaded its lists, every address becomes CATEGORY:NO_CONFIGURATION.',
+    enabled: 'Boolean, required. When true, addresses in records of the configured record types are hidden by the lists below. When false, records pass through unchanged. When absent or not a boolean, or when the section is missing or not an object, every address becomes CATEGORY:NO_CONFIGURATION. Before the configuration arrives, and while lists named below have not loaded in rex-lists, every address becomes CATEGORY:NO_CONFIGURATION; with no list named, the rules run at once.',
     allow_lists: 'Array of rex-lists list names, optional. Addresses on these lists keep their address; every other address becomes CATEGORY:NOT_ON_ALLOWLIST. With no allow lists, every address is allowed. Default [].',
     filter_lists: 'Array of rex-lists list names, optional. Matching addresses become CATEGORY:<category>. Default [].',
     domain_only_lists: 'Array of rex-lists list names, optional. Matching addresses lose their address and title and keep their registered domain. Takes precedence over the other lists. Default [].',

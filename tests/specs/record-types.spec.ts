@@ -228,6 +228,37 @@ test.describe('states', () => {
     expect(result.filtered).toBe(true)
   })
 
+  test('with no list named the rules run without waiting for lists to load', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: null })
+
+    expect(await serviceWorker.evaluate(() => self.listsLoaded())).toBe(false)
+
+    const given = withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' })
+    const result = await processed(serviceWorker, given)
+
+    expect(result.url).toBe(given.url)
+    expect(result.title).toBe('T')
+    expect(result.filtered).toBe(false)
+  })
+
+  test('a named list missing from loaded lists leaves the record unchanged under on_failure pass', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-present': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['record-absent'], on_failure: 'pass' })
+
+    const given = withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' })
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('a named list missing from loaded lists hides the address under on_failure hide', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-present': [listEntry('kept.test', 'ALLOWED')] }, allow_lists: ['record-absent'], on_failure: 'hide' })
+
+    const result = await processed(serviceWorker, withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }))
+
+    expect(result.url).toBe('CATEGORY:REDACTION_FAILED')
+    expect(result.title).toBe('')
+    expect(result.domain).toBe('')
+  })
+
   test('a named list with no entries leaves the record unchanged by default', async ({ serviceWorker }) => {
     await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'] })
 
@@ -709,9 +740,9 @@ test.describe('a domain-only type judges the parsed hostname', () => {
       expect(result.kept).toBe(1)
     })
 
-    test(`${JSON.stringify(value)} before configuration is blanked`, async ({ serviceWorker }) => {
+    test(`${JSON.stringify(value)} before the named lists load is blanked`, async ({ serviceWorker }) => {
       await serviceWorker.evaluate((types) => {
-        self.rexContentProcessingUrlRedactionPlugin.processor.config = { enabled: true, record_types: types }
+        self.rexContentProcessingUrlRedactionPlugin.processor.config = { enabled: true, allow_lists: ['record-allow'], record_types: types }
       }, record_types)
 
       const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: value }))
@@ -751,6 +782,8 @@ test.describe('settings that cannot be used', () => {
 
   for (const section of [null, 'text', 4, []]) {
     test(`a module section of ${JSON.stringify(section)} does not throw and leaves addresses hidden`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, {})
+
       const threw = await serviceWorker.evaluate((value) => {
         try {
           self.rexContentProcessingUrlRedactionPlugin.applyConfiguration({ content_processing_url_redaction: value })
@@ -806,33 +839,93 @@ test.describe('a domain-only type keeps only the host', () => {
   })
 })
 
-test.describe('a configuration applied after an unusable section', () => {
-  test('takes effect', async ({ serviceWorker }) => {
-    const onFailure = await serviceWorker.evaluate(() => {
-      const plugin = self.rexContentProcessingUrlRedactionPlugin
+const SECTION_VISIT = { name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }
 
-      plugin.applyConfiguration({ content_processing_url_redaction: null })
-      plugin.applyConfiguration({ content_processing_url_redaction: { enabled: true, on_failure: 'hide' } })
+async function settleInitialRead(serviceWorker) {
+  await startWith(serviceWorker, {})
+}
 
-      return plugin.processor.config.on_failure
+async function updateConfiguration(serviceWorker, update) {
+  await serviceWorker.evaluate(async ({ present, section }) => {
+    const stored = await self.rexCorePlugin.fetchConfiguration()
+    const configuration = {}
+
+    for (const [key, value] of Object.entries(stored)) {
+      if (key !== 'content_processing_url_redaction') {
+        configuration[key] = value
+      }
+    }
+
+    if (present === true) {
+      configuration.content_processing_url_redaction = section
+    }
+
+    await new Promise((resolve) => {
+      self.rexCorePlugin.handleMessage({ messageType: 'updateConfiguration', configuration }, null, resolve)
     })
 
-    expect(onFailure).toBe('hide')
+    await self.rexContentProcessingUrlRedactionPlugin.refreshConfiguration()
+  }, update)
+}
+
+function withSection(section) {
+  return { present: true, section }
+}
+
+test.describe('a section that cannot be used after one that could', () => {
+  test('enabled false then an empty section hides the address', async ({ serviceWorker }) => {
+    await settleInitialRead(serviceWorker)
+    await updateConfiguration(serviceWorker, withSection({ enabled: false }))
+    await updateConfiguration(serviceWorker, withSection({}))
+
+    const result = await processed(serviceWorker, withId(SECTION_VISIT))
+
+    expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.filtered).toBe(true)
+  })
+
+  test('enabled true then a null section hides the address', async ({ serviceWorker }) => {
+    await settleInitialRead(serviceWorker)
+    await updateConfiguration(serviceWorker, withSection({ enabled: true }))
+    await updateConfiguration(serviceWorker, withSection(null))
+
+    const result = await processed(serviceWorker, withId(SECTION_VISIT))
+
+    expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.filtered).toBe(true)
+  })
+
+  test('enabled true then a configuration without the section hides the address', async ({ serviceWorker }) => {
+    await settleInitialRead(serviceWorker)
+    await updateConfiguration(serviceWorker, withSection({ enabled: true }))
+    await updateConfiguration(serviceWorker, { present: false, section: null })
+
+    const result = await processed(serviceWorker, withId(SECTION_VISIT))
+
+    expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.filtered).toBe(true)
+  })
+
+  test('a null section then a valid one applies the rules', async ({ serviceWorker }) => {
+    await settleInitialRead(serviceWorker)
+    await updateConfiguration(serviceWorker, withSection(null))
+    await updateConfiguration(serviceWorker, withSection({ enabled: true }))
+
+    const given = withId(SECTION_VISIT)
+    const result = await processed(serviceWorker, given)
+
+    expect(result.url).toBe(given.url)
+    expect(result.filtered).toBe(false)
   })
 })
 
 test.describe('the enabled setting', () => {
-  const VISIT = { name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' }
-
-  async function applySection(serviceWorker, section) {
-    await serviceWorker.evaluate((value) => {
-      self.rexContentProcessingUrlRedactionPlugin.applyConfiguration({ content_processing_url_redaction: value })
-    }, section)
-  }
+  const VISIT = SECTION_VISIT
 
   for (const section of [{}, { enabled: 'yes' }]) {
     test(`${JSON.stringify(section)} hides the address`, async ({ serviceWorker }) => {
-      await applySection(serviceWorker, section)
+      await settleInitialRead(serviceWorker)
+      await updateConfiguration(serviceWorker, withSection(section))
 
       const result = await processed(serviceWorker, withId(VISIT))
 
@@ -841,7 +934,8 @@ test.describe('the enabled setting', () => {
   }
 
   test('enabled false passes the record through unchanged', async ({ serviceWorker }) => {
-    await applySection(serviceWorker, { enabled: false })
+    await settleInitialRead(serviceWorker)
+    await updateConfiguration(serviceWorker, withSection({ enabled: false }))
 
     const given = withId(VISIT)
 

@@ -5,7 +5,7 @@ const LOG_PREFIX = '[rex-content-processing-url-redaction]'
 export const DEFAULT_RECORD_TYPES: RecordType[] = [
   { name: 'rex-history-visit', fields: { url: 'url', title: 'title', domain: 'domain', copies: ['recorded_url'] } },
   { name: 'rex-history-visit-aggregate', fields: { url: 'url', title: 'title', domain: 'domain', copies: ['recorded_url'] } },
-  { name: 'rex-page-event', fields: { url: 'url', title: 'title', other_addresses: ['previous_url', 'opener_url', 'link_url', 'destination_url'] } },
+  { name: 'rex-page-event', fields: { url: 'url', title: 'title', domain: 'domain', other_addresses: ['previous_url', 'opener_url', 'link_url', 'destination_url'] } },
   { name: 'rex-browsing-visit', fields: { url: 'url', title: 'title', domain: 'domain' } },
   { name: 'rex-browsing-opener', fields: { url: 'url', domain: 'domain' } },
   { name: 'rex-browsing-page', fields: { url: 'url', domain: 'domain' } },

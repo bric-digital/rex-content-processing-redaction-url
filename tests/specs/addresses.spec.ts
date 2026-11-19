@@ -53,6 +53,7 @@ test.describe('Address configuration', () => {
     expect(record.url).toBe('CATEGORY:NOT_ON_ALLOWLIST')
     expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
     expect(record.title).toBe('')
+    expect(record.domain).toBe('')
   })
 
   test('an empty allow list keeps the address', async ({ serviceWorker }) => {
@@ -86,6 +87,7 @@ test.describe('Address configuration', () => {
 
     expect(record.url).toBe('')
     expect(record.title).toBe('')
+    expect(record.domain).toBe('example.net')
     expect(record.filtered_by_list).toBe('test-domain-only')
   })
 

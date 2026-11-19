@@ -4,19 +4,19 @@ REX content processor that hides web addresses in records by allow, filter and d
 
 ## Overview
 
-Collectors store records as they arrive, so a record that carries a web address stores it unless something changes it first. This module registers a `REXContentProcessor` with `rex-content-processing`. A collector that runs content processors on each record before storing it, such as `rex-data-collection` (and so `rex-local-download`), stores the addresses as this processor leaves them. An extension that does not include this module sends unredacted addresses.
+Collectors store records as they arrive, so a record that carries a web address stores it unless something changes it first. This module registers a `REXContentProcessor` with `rex-content-processing`. A collector that runs content processors on each record before storing it, such as `rex-data-collection` (and so `rex-local-download`) or `rex-passive-data-kit`, stores the addresses as this processor leaves them. An extension that does not include this module sends unredacted addresses.
 
 - A record is processed when its `name` (and its `event_name`, if the record type has one) matches a record type. Every other record passes through unchanged. The default record types are `rex-history-visit`, `rex-history-visit-aggregate`, `rex-page-event`, `rex-browsing-visit`, `rex-browsing-opener`, `rex-browsing-page` and the `pdk-app-event` visit ceiling events of `rex-history` and `rex-browsing` and its `rex-history-skipped` event.
 - A record is never dropped and no field is removed. Only the address fields named by its record type change, together with `filtered` and the list labels.
-- Before the configuration arrives, and while `rex-lists` has not yet loaded its lists, every address becomes `CATEGORY:NO_CONFIGURATION`.
+- Before the configuration arrives, every address becomes `CATEGORY:NO_CONFIGURATION`. When the configuration names lists and `rex-lists` has not loaded them, every address becomes `CATEGORY:NO_CONFIGURATION` too. When it names no list, the rules run at once and every address is allowed.
 - When a list named in the configuration has no entries, or a lookup fails, the record passes through unchanged unless `on_failure` is `hide`, which replaces its addresses with `CATEGORY:REDACTION_FAILED`.
 - A record whose address field is missing or is not a string passes through unchanged.
-- Only an explicit `enabled: false` turns the processor off: records then pass through unchanged. With a missing section, a section that is `null`, not an object or an array, or an object whose `enabled` is absent or not a boolean (a warning is logged when it is present), the processor stays on and hides every address with `CATEGORY:NO_CONFIGURATION`. With `enabled: true` the rules apply.
+- Only an explicit `enabled: false` turns the processor off: records then pass through unchanged. With a missing section, a section that is `null`, not an object or an array, or an object whose `enabled` is absent or not a boolean (a warning is logged when it is present), the processor is on and hides every address with `CATEGORY:NO_CONFIGURATION`, even after an earlier valid section. With `enabled: true` the rules apply.
 - The processor returns a new record and never changes the record it receives, because the event bus gives the same record to every module.
 
 ### Where it runs
 
-The processor acts only where a collector runs content processors. A module that receives records through `logEvent` without running them, such as a debugging view, sees raw addresses. The processor must not run with a version of `rex-page-events` that still hides addresses itself: a hidden address such as `CATEGORY:NOT_ON_ALLOWLIST` is not on any allow list, so it would be hidden again with different list fields.
+The processor acts only where a collector runs content processors. A module that receives records through `logEvent` without running them, such as a debugging view, sees raw addresses.
 
 ### Record types
 
@@ -28,6 +28,7 @@ A record type says which fields of a record hold addresses:
   "fields": {
     "url": "url",
     "title": "title",
+    "domain": "domain",
     "other_addresses": ["previous_url", "opener_url", "link_url", "destination_url"]
   }
 }
@@ -70,7 +71,7 @@ This module reads the `content_processing_url_redaction` section of the configur
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `enabled` | boolean | Yes | none | When `true`, addresses are hidden by the lists below. When `false`, records pass through unchanged. When absent or not a boolean, the section counts as missing. Until the configuration arrives and the lists have loaded, every address becomes `CATEGORY:NO_CONFIGURATION`. |
+| `enabled` | boolean | Yes | none | When `true`, addresses are hidden by the lists below. When `false`, records pass through unchanged. When absent or not a boolean, the section counts as missing. |
 | `allow_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose addresses are kept. Every other address becomes `CATEGORY:NOT_ON_ALLOWLIST`. With no lists, every address is allowed. |
 | `filter_lists` | string[] | No | `[]` | Names of `rex-lists` lists whose matching addresses become `CATEGORY:<category>`. |
 | `domain_only_lists` | string[] | No | `[]` | Matching addresses lose their address and title and keep their registered domain. |
@@ -78,6 +79,14 @@ This module reads the `content_processing_url_redaction` section of the configur
 | `record_types` | object[] | No | the default record types | Replaces the default record types. When it is not valid, or is an empty array, the defaults are used and a warning is logged; turn the processor off with `enabled: false`. |
 
 `config.sample.json` gives every field at its default.
+
+With `enabled: true`, a record is handled in one of three states:
+
+1. The configuration names no list in `allow_lists`, `filter_lists` or `domain_only_lists`: the rules run without waiting for `rex-lists`, and every address is allowed.
+2. The configuration names at least one list and `rex-lists` has not finished loading its lists: every address becomes `CATEGORY:NO_CONFIGURATION`. The first time this happens after a configuration is applied, a warning says that the extension must import `@bric/rex-lists/service-worker`.
+3. The configuration names at least one list and `rex-lists` has loaded its lists: the rules run. A named list with no entries is a failure, handled by `on_failure`.
+
+Only an explicit `enabled: false` turns the processor off. Whenever a configuration arrives whose section is missing, empty, not an object, or has an `enabled` that is not a boolean, the processor is on and hides every address with `CATEGORY:NO_CONFIGURATION`, whatever an earlier section said.
 
 ## Installation
 
@@ -87,21 +96,25 @@ Add the module to an extension's `package.json`:
 "@bric/rex-content-processing-url-redaction": "github:bric-digital/rex-content-processing-url-redaction"
 ```
 
-and import its service-worker part:
+and import its service-worker part in the service-worker entry file, together with the lists module, which loads the lists from configuration. Reference each imported plugin so the bundler keeps it:
 
 ```ts
-await import('@bric/rex-content-processing-url-redaction/service-worker')
+import listsPlugin from '@bric/rex-lists/service-worker'
+import urlRedactionPlugin from '@bric/rex-content-processing-url-redaction/service-worker'
+
+console.log(`Imported ${listsPlugin} into service worker context...`)
+console.log(`Imported ${urlRedactionPlugin} into service worker context...`)
 ```
 
-The extension must also import the lists module, which loads the lists from configuration:
+Until it has loaded the lists the configuration names, every address stays hidden.
 
-```ts
-await import('@bric/rex-lists/service-worker')
-```
+It needs `@bric/rex-content-processing` and a collector that runs content processors, such as `rex-data-collection` or `rex-passive-data-kit`.
 
-Until it has loaded the lists, every address stays hidden.
+## Limits
 
-It needs `@bric/rex-content-processing` and a collector that runs content processors, such as `rex-data-collection`.
+- Do not name a generated list, one a module fills at run time such as `rex-history`'s top domains, in this module's lists. It is empty until it is generated, and an empty named list is a failure.
+- `filtered_by_list_entry` and `allowed_by_list_entry` carry the matched list entry. An entry whose pattern type is `exact_url` (an exact address) or `regex` (a regular expression) can itself contain the address that was hidden.
+- When an extension has two installed copies of `@bric/rex-content-processing`, this processor registers with a copy that no collector calls, and nothing is redacted. The extension must have one copy; `npm ls @bric/rex-content-processing` shows them.
 
 ## Testing
 
