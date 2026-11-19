@@ -4,9 +4,9 @@ import { listsLoaded } from '@bric/rex-lists/service-worker'
 import { type AddressRecord, applyMainResult, applyOtherResult } from './apply-result.mjs'
 import { resolveAddress } from './address-rules.mjs'
 import { recordTypeOf } from './record-types.mjs'
-import { type AddressFields, type AddressResult, type RecordType, type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
+import { type AddressFields, type AddressResult, type RecordType, type REXContentProcessingRedactionUrlConfiguration } from './types.mjs'
 
-const LOG_PREFIX = '[rex-content-processing-url-redaction]'
+const LOG_PREFIX = '[rex-content-processing-redaction-url]'
 const NO_CONFIGURATION = 'CATEGORY:NO_CONFIGURATION'
 const REDACTION_FAILED = 'CATEGORY:REDACTION_FAILED'
 
@@ -56,7 +56,7 @@ function hideAddresses(record: AddressRecord, urlField: string, fields: AddressF
   return applyResolved(record, urlField, fields, { main: hiddenResult(label), others })
 }
 
-async function resolveRecord(config: REXContentProcessingUrlRedactionConfiguration, record: AddressRecord, urlField: string, fields: AddressFields): Promise<ResolvedRecord> {
+async function resolveRecord(config: REXContentProcessingRedactionUrlConfiguration, record: AddressRecord, urlField: string, fields: AddressFields): Promise<ResolvedRecord> {
   const main = await resolveAddress(config, record[urlField] as string, titleOf(record, fields))
   const others = new Map<string, AddressResult>()
 
@@ -150,24 +150,24 @@ function hasNames(names: string[] | undefined): boolean {
   return Array.isArray(names) && names.length > 0
 }
 
-function namesAnyList(config: REXContentProcessingUrlRedactionConfiguration): boolean {
+function namesAnyList(config: REXContentProcessingRedactionUrlConfiguration): boolean {
   return hasNames(config.allow_lists) || hasNames(config.filter_lists) || hasNames(config.domain_only_lists)
 }
 
-export class REXContentProcessingUrlRedactionProcessor extends REXContentProcessor {
-  config: REXContentProcessingUrlRedactionConfiguration | null = null
+export class REXContentProcessingRedactionUrlProcessor extends REXContentProcessor {
+  config: REXContentProcessingRedactionUrlConfiguration | null = null
   warnedListsNotLoaded = false
 
   name(): string {
-    return 'REXContentProcessingUrlRedactionProcessor'
+    return 'REXContentProcessingRedactionUrlProcessor'
   }
 
-  useConfiguration(config: REXContentProcessingUrlRedactionConfiguration | null) {
+  useConfiguration(config: REXContentProcessingRedactionUrlConfiguration | null) {
     this.config = config
     this.warnedListsNotLoaded = false
   }
 
-  private async readyToApplyRules(config: REXContentProcessingUrlRedactionConfiguration): Promise<boolean> {
+  private async readyToApplyRules(config: REXContentProcessingRedactionUrlConfiguration): Promise<boolean> {
     if (namesAnyList(config) === false) {
       return true
     }

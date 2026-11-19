@@ -1,4 +1,4 @@
-# rex-content-processing-url-redaction
+# rex-content-processing-redaction-url
 
 REX content processor that hides web addresses in records by allow, filter and domain-only lists from `rex-lists`, before a collector stores them.
 
@@ -67,7 +67,7 @@ Fields named in `other_addresses` follow the same rules as `url`. Within one lis
 
 ## Configuration
 
-This module reads the `content_processing_url_redaction` section of the configuration. `configurationDetails()` describes each field.
+This module reads the `content_processing_redaction_url` section of the configuration. `configurationDetails()` describes each field.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -93,17 +93,17 @@ Only an explicit `enabled: false` turns the processor off. Whenever a configurat
 Add the module to an extension's `package.json`:
 
 ```json
-"@bric/rex-content-processing-url-redaction": "github:bric-digital/rex-content-processing-url-redaction"
+"@bric/rex-content-processing-redaction-url": "github:bric-digital/rex-content-processing-redaction-url"
 ```
 
 and import its service-worker part in the service-worker entry file, together with the lists module, which loads the lists from configuration. Reference each imported plugin so the bundler keeps it:
 
 ```ts
 import listsPlugin from '@bric/rex-lists/service-worker'
-import urlRedactionPlugin from '@bric/rex-content-processing-url-redaction/service-worker'
+import redactionUrlPlugin from '@bric/rex-content-processing-redaction-url/service-worker'
 
 console.log(`Imported ${listsPlugin} into service worker context...`)
-console.log(`Imported ${urlRedactionPlugin} into service worker context...`)
+console.log(`Imported ${redactionUrlPlugin} into service worker context...`)
 ```
 
 Until it has loaded the lists the configuration names, every address stays hidden.

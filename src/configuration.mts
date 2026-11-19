@@ -1,7 +1,7 @@
 import { recordTypesToUse } from './record-types.mjs'
-import { type OnFailure, type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
+import { type OnFailure, type REXContentProcessingRedactionUrlConfiguration } from './types.mjs'
 
-const LOG_PREFIX = '[rex-content-processing-url-redaction]'
+const LOG_PREFIX = '[rex-content-processing-redaction-url]'
 const ON_FAILURE_VALUES: unknown[] = ['pass', 'hide']
 
 function onFailureToUse(configured: unknown): OnFailure | undefined {
@@ -14,7 +14,7 @@ function onFailureToUse(configured: unknown): OnFailure | undefined {
   return 'hide'
 }
 
-export function normalizeConfiguration(configured: REXContentProcessingUrlRedactionConfiguration): REXContentProcessingUrlRedactionConfiguration {
+export function normalizeConfiguration(configured: REXContentProcessingRedactionUrlConfiguration): REXContentProcessingRedactionUrlConfiguration {
   return {
     ...configured,
     on_failure: onFailureToUse(configured.on_failure),
@@ -22,7 +22,7 @@ export function normalizeConfiguration(configured: REXContentProcessingUrlRedact
   }
 }
 
-export const CONFIGURATION_KEY = 'content_processing_url_redaction'
+export const CONFIGURATION_KEY = 'content_processing_redaction_url'
 
 export const CONFIGURATION_DETAILS = {
   [CONFIGURATION_KEY]: {

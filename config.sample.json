@@ -1,5 +1,5 @@
 {
-  "content_processing_url_redaction": {
+  "content_processing_redaction_url": {
     "enabled": true,
     "allow_lists": [],
     "filter_lists": [],

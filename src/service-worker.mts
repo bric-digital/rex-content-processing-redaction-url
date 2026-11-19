@@ -2,18 +2,18 @@ import { type REXConfiguration } from '@bric/rex-core/common'
 import rexCorePlugin, { REXServiceWorkerModule, registerREXModule } from '@bric/rex-core/service-worker'
 
 import { CONFIGURATION_DETAILS, CONFIGURATION_KEY, normalizeConfiguration } from './configuration.mjs'
-import { REXContentProcessingUrlRedactionProcessor } from './processor.mjs'
-import { type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
+import { REXContentProcessingRedactionUrlProcessor } from './processor.mjs'
+import { type REXContentProcessingRedactionUrlConfiguration } from './types.mjs'
 
-const LOG_PREFIX = '[rex-content-processing-url-redaction]'
+const LOG_PREFIX = '[rex-content-processing-redaction-url]'
 const CONFIGURATION_TIMEOUT_MS = 10000
 
-class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
-  config: REXContentProcessingUrlRedactionConfiguration | null = null
-  processor: REXContentProcessingUrlRedactionProcessor = new REXContentProcessingUrlRedactionProcessor()
+class REXContentProcessingRedactionUrlModule extends REXServiceWorkerModule {
+  config: REXContentProcessingRedactionUrlConfiguration | null = null
+  processor: REXContentProcessingRedactionUrlProcessor = new REXContentProcessingRedactionUrlProcessor()
 
   moduleName() {
-    return 'ContentProcessingUrlRedactionModule'
+    return 'ContentProcessingRedactionUrlModule'
   }
 
   setup() {
@@ -50,7 +50,7 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
       return
     }
 
-    const redactionConfig = section as REXContentProcessingUrlRedactionConfiguration
+    const redactionConfig = section as REXContentProcessingRedactionUrlConfiguration
 
     if (typeof redactionConfig.enabled !== 'boolean') {
       if (redactionConfig.enabled !== undefined) {
@@ -79,7 +79,7 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
   }
 }
 
-const plugin = new REXContentProcessingUrlRedactionModule()
+const plugin = new REXContentProcessingRedactionUrlModule()
 
 registerREXModule(plugin)
 

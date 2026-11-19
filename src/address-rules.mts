@@ -1,8 +1,8 @@
 import { type ListEntry, hasListEntries, matchDomainAgainstList, registeredDomainOf } from '@bric/rex-lists'
 
-import { type AddressResult, type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
+import { type AddressResult, type REXContentProcessingRedactionUrlConfiguration } from './types.mjs'
 
-const LOG_PREFIX = '[rex-content-processing-url-redaction]'
+const LOG_PREFIX = '[rex-content-processing-redaction-url]'
 
 const NOT_ON_ALLOWLIST = 'NOT_ON_ALLOWLIST'
 
@@ -36,7 +36,7 @@ async function findListMatch(url: string, listNames: string[]): Promise<ListMatc
   return null
 }
 
-async function hasEmptyList(config: REXContentProcessingUrlRedactionConfiguration): Promise<boolean> {
+async function hasEmptyList(config: REXContentProcessingRedactionUrlConfiguration): Promise<boolean> {
   const listNames = [...(config.allow_lists ?? []), ...(config.filter_lists ?? []), ...(config.domain_only_lists ?? [])]
 
   for (const listName of listNames) {
@@ -102,7 +102,7 @@ function withAllowMatch(result: AddressResult, allowMatch: ListMatch | null): Ad
   return { ...result, allowed_by_list: allowMatch.listName, allowed_by_list_entry: allowMatch.entry }
 }
 
-async function applyRules(config: REXContentProcessingUrlRedactionConfiguration, url: string, title: string, domain: string): Promise<AddressResult> {
+async function applyRules(config: REXContentProcessingRedactionUrlConfiguration, url: string, title: string, domain: string): Promise<AddressResult> {
   if (await hasEmptyList(config)) {
     return failedResult(url, title, domain)
   }
@@ -129,7 +129,7 @@ async function applyRules(config: REXContentProcessingUrlRedactionConfiguration,
   return withAllowMatch(unchangedResult(url, title, domain), allowMatch)
 }
 
-export async function resolveAddress(config: REXContentProcessingUrlRedactionConfiguration, url: string, title: string): Promise<AddressResult> {
+export async function resolveAddress(config: REXContentProcessingRedactionUrlConfiguration, url: string, title: string): Promise<AddressResult> {
   if (isValidUrl(url) === false) {
     return unchangedResult(url, title, '')
   }

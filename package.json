@@ -1,5 +1,5 @@
 {
-  "name": "@bric/rex-content-processing-url-redaction",
+  "name": "@bric/rex-content-processing-redaction-url",
   "type": "module",
   "description": "REX content processor that hides web addresses in records by allow, filter and domain-only lists.",
   "exports": {

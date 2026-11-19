@@ -106,7 +106,7 @@ test.describe('Address configuration', () => {
   })
 
   test('with enabled: false a record passes through unchanged', async ({ serviceWorker }) => {
-    const config = { ...BASE_CONFIG, page_events: { enabled: true, allow_all: true }, content_processing_url_redaction: { enabled: false } }
+    const config = { ...BASE_CONFIG, page_events: { enabled: true, allow_all: true }, content_processing_redaction_url: { enabled: false } }
     await loadConfig(serviceWorker, config)
     await waitForModuleConfiguration(serviceWorker, config)
     await resetCaptured(serviceWorker)
@@ -119,7 +119,7 @@ test.describe('Address configuration', () => {
   })
 
   test('before configuration arrives, the address is hidden', async ({ serviceWorker }) => {
-    const configured = await serviceWorker.evaluate(() => self.rexContentProcessingUrlRedactionPlugin.config)
+    const configured = await serviceWorker.evaluate(() => self.rexContentProcessingRedactionUrlPlugin.config)
 
     await serviceWorker.evaluate(() => {
       self.dispatchEvent({ name: 'rex-page-event', event_type: 'tab_open', tab_id: -1, url: 'https://example.org/early', title: 'Early' })

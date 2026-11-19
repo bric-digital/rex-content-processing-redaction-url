@@ -51,7 +51,7 @@ export const expect = test.expect;
 
 export const BASE_CONFIG = {
   configuration_url: 'config.json',
-  identifier: 'rex-content-processing-url-redaction-test',
+  identifier: 'rex-content-processing-redaction-url-test',
   page_events: {
     enabled: true,
     allow_all: true,
@@ -89,7 +89,7 @@ export async function loadConfig(serviceWorker, config) {
 
 const MODULE_KEYS = {
   rexPageEventsPlugin: 'page_events',
-  rexContentProcessingUrlRedactionPlugin: 'content_processing_url_redaction',
+  rexContentProcessingRedactionUrlPlugin: 'content_processing_redaction_url',
 }
 
 export async function waitForModuleConfiguration(serviceWorker, config) {
@@ -128,7 +128,7 @@ export function configFor(pageEvents = {}) {
     }
   }
 
-  const config = { ...BASE_CONFIG, page_events: pageEventsConfig, content_processing_url_redaction: redactionConfig }
+  const config = { ...BASE_CONFIG, page_events: pageEventsConfig, content_processing_redaction_url: redactionConfig }
 
   if (pageEvents.lists !== null) {
     config.lists = pageEvents.lists ?? {}

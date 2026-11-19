@@ -17,7 +17,7 @@ export interface RecordType {
   fields: AddressFields
 }
 
-export interface REXContentProcessingUrlRedactionConfiguration {
+export interface REXContentProcessingRedactionUrlConfiguration {
   enabled: boolean
   allow_lists?: string[]
   filter_lists?: string[]

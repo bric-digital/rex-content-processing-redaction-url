@@ -1,6 +1,6 @@
-import { type REXContentProcessingUrlRedactionConfiguration, type RecordType } from './types.mjs'
+import { type REXContentProcessingRedactionUrlConfiguration, type RecordType } from './types.mjs'
 
-const LOG_PREFIX = '[rex-content-processing-url-redaction]'
+const LOG_PREFIX = '[rex-content-processing-redaction-url]'
 
 export const DEFAULT_RECORD_TYPES: RecordType[] = [
   { name: 'rex-history-visit', fields: { url: 'url', title: 'title', domain: 'domain', copies: ['recorded_url'] } },
@@ -76,7 +76,7 @@ function matches(type: RecordType, record: Record<string, unknown>): boolean {
   return type.event_name === undefined || type.event_name === record.event_name
 }
 
-export function recordTypeOf(config: REXContentProcessingUrlRedactionConfiguration | null, content: unknown): RecordType | null {
+export function recordTypeOf(config: REXContentProcessingRedactionUrlConfiguration | null, content: unknown): RecordType | null {
   if (typeof content !== 'object' || content === null) {
     return null
   }

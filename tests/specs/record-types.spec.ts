@@ -363,7 +363,7 @@ test.describe('states', () => {
 
   test('with enabled false the record passes through unchanged', async ({ serviceWorker }) => {
     await startWith(serviceWorker, ALLOW_ONLY_KEPT)
-    await serviceWorker.evaluate(() => self.rexContentProcessingUrlRedactionPlugin.processor.disable())
+    await serviceWorker.evaluate(() => self.rexContentProcessingRedactionUrlPlugin.processor.disable())
 
     const given = withId({ name: 'rex-browsing-visit', url: `${HIDDEN}/p`, title: 'T', domain: 'hidden.test' })
 
@@ -725,7 +725,7 @@ test.describe('an error while handling a matched record', () => {
   async function processDirectly(serviceWorker) {
     return serviceWorker.evaluate(async (source) => {
       const record = new Function(`return (${source})()`)()
-      const processor = self.rexContentProcessingUrlRedactionPlugin.processor
+      const processor = self.rexContentProcessingRedactionUrlPlugin.processor
       const result = await processor.processContent(record)
 
       return { same: result === record, url: result.url, domain: result.domain }
@@ -775,7 +775,7 @@ test.describe('a domain-only type judges the parsed hostname', () => {
 
     test(`${JSON.stringify(value)} before the named lists load is blanked`, async ({ serviceWorker }) => {
       await serviceWorker.evaluate((types) => {
-        self.rexContentProcessingUrlRedactionPlugin.processor.config = { enabled: true, allow_lists: ['record-allow'], record_types: types }
+        self.rexContentProcessingRedactionUrlPlugin.processor.config = { enabled: true, allow_lists: ['record-allow'], record_types: types }
       }, record_types)
 
       const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: value }))
@@ -787,7 +787,7 @@ test.describe('a domain-only type judges the parsed hostname', () => {
 
   test('a value with no usable hostname is left as it was in every state', async ({ serviceWorker }) => {
     await serviceWorker.evaluate((types) => {
-      self.rexContentProcessingUrlRedactionPlugin.processor.config = { enabled: true, record_types: types }
+      self.rexContentProcessingRedactionUrlPlugin.processor.config = { enabled: true, record_types: types }
     }, record_types)
 
     const before = await processed(serviceWorker, withId({ name: 'custom-domain', site: 'not available' }))
@@ -819,7 +819,7 @@ test.describe('settings that cannot be used', () => {
 
       const threw = await serviceWorker.evaluate((value) => {
         try {
-          self.rexContentProcessingUrlRedactionPlugin.applyConfiguration({ content_processing_url_redaction: value })
+          self.rexContentProcessingRedactionUrlPlugin.applyConfiguration({ content_processing_redaction_url: value })
 
           return false
         } catch {
@@ -884,20 +884,20 @@ async function updateConfiguration(serviceWorker, update) {
     const configuration = {}
 
     for (const [key, value] of Object.entries(stored)) {
-      if (key !== 'content_processing_url_redaction') {
+      if (key !== 'content_processing_redaction_url') {
         configuration[key] = value
       }
     }
 
     if (present === true) {
-      configuration.content_processing_url_redaction = section
+      configuration.content_processing_redaction_url = section
     }
 
     await new Promise((resolve) => {
       self.rexCorePlugin.handleMessage({ messageType: 'updateConfiguration', configuration }, null, resolve)
     })
 
-    await self.rexContentProcessingUrlRedactionPlugin.refreshConfiguration()
+    await self.rexContentProcessingRedactionUrlPlugin.refreshConfiguration()
   }, update)
 }
 

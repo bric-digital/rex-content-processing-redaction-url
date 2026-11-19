@@ -9,7 +9,7 @@ import { REXContentProcessorManager } from '@bric/rex-content-processing/library
 import { createListEntry } from '@bric/rex-lists'
 import rexListsPlugin, { listsLoaded } from '@bric/rex-lists/service-worker'
 import rexPageEventsPlugin from '@bric/rex-page-events/service-worker'
-import rexContentProcessingUrlRedactionPlugin from '@bric/rex-content-processing-url-redaction/service-worker'
+import rexContentProcessingRedactionUrlPlugin from '@bric/rex-content-processing-redaction-url/service-worker'
 import { resolveAddress } from '../../src/address-rules.mts'
 
 self['__capturedEvents'] = []
@@ -35,7 +35,7 @@ registerREXModule(new EventCaptureModule())
 
 self['rexCorePlugin'] = rexCorePlugin
 self['rexPageEventsPlugin'] = rexPageEventsPlugin
-self['rexContentProcessingUrlRedactionPlugin'] = rexContentProcessingUrlRedactionPlugin
+self['rexContentProcessingRedactionUrlPlugin'] = rexContentProcessingRedactionUrlPlugin
 self['createListEntry'] = createListEntry
 self['listsLoaded'] = listsLoaded
 self['rexListsPlugin'] = rexListsPlugin

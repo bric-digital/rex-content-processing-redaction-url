@@ -91,7 +91,7 @@ test.describe('rex-browsing-visit addresses', () => {
   })
 
   test('before configuration arrives, the address is hidden and the visit is still recorded', async ({ serviceWorker }) => {
-    const configured = await serviceWorker.evaluate(() => self.rexContentProcessingUrlRedactionPlugin.config)
+    const configured = await serviceWorker.evaluate(() => self.rexContentProcessingRedactionUrlPlugin.config)
     const record = await processed(serviceWorker, visit({ visit_id: '42' }))
 
     expect(configured).toBeNull()
@@ -101,7 +101,7 @@ test.describe('rex-browsing-visit addresses', () => {
 
   test('with enabled false the record passes through unchanged', async ({ serviceWorker }) => {
     await startWith(serviceWorker, {})
-    await serviceWorker.evaluate(() => self.rexContentProcessingUrlRedactionPlugin.processor.disable())
+    await serviceWorker.evaluate(() => self.rexContentProcessingRedactionUrlPlugin.processor.disable())
 
     const given = visit({ visit_id: '43' })
     const record = await processed(serviceWorker, given)
