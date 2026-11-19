@@ -2,6 +2,7 @@ import { type AddressFields, type AddressResult } from './types.mjs'
 
 export type AddressRecord = Record<string, unknown>
 
+const DEFAULT_DOMAIN_FIELD = 'domain'
 const LABEL_FIELDS = ['filtered_by_list', 'filtered_by_list_entry', 'allowed_by_list', 'allowed_by_list_entry'] as const
 
 function writeLabels(record: AddressRecord, result: AddressResult): void {
@@ -33,11 +34,7 @@ export function applyMainResult(record: AddressRecord, urlField: string, fields:
     record[fields.title] = result.title
   }
 
-  if (fields.domain !== undefined) {
-    if (fields.domain in record || result.domain_only_match === true) {
-      record[fields.domain] = result.domain
-    }
-  }
+  record[fields.domain ?? DEFAULT_DOMAIN_FIELD] = result.domain
 
   writeLabels(record, result)
 }

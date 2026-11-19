@@ -56,7 +56,7 @@ const DEFAULT_TYPE_CASES = [
   {
     label: 'rex-page-event',
     addressFields: ['url', 'previous_url', 'opener_url', 'link_url', 'destination_url'],
-    blankedFields: ['title'],
+    blankedFields: ['title', 'domain'],
     record: {
       name: 'rex-page-event',
       event_type: 'click',
@@ -202,24 +202,35 @@ test.describe('default record types', () => {
 
 test.describe('a domain field the record does not have', () => {
   const DOMAIN_ONLY_EXAMPLE = { lists: { 'record-domain-only': [listEntry('example.com', 'ANY', 'domain')] }, domain_only_lists: ['record-domain-only'] }
+  const FILTER_HIDDEN = { lists: { 'record-filter': [listEntry('hidden.test', 'EMAIL')] }, filter_lists: ['record-filter'] }
+  const EMPTY_ALLOW_HIDE = { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'hide' }
 
   for (const name of ['rex-page-event', 'rex-browsing-opener']) {
-    test(`${name}: is not added when nothing is hidden`, async ({ serviceWorker }) => {
+    test(`${name}: is added with the registered domain when the address is shown`, async ({ serviceWorker }) => {
       await startWith(serviceWorker, ALLOW_ONLY_KEPT)
 
-      const result = await processed(serviceWorker, withId({ name, url: `${ALLOWED}/p` }))
+      const result = await processed(serviceWorker, withId({ name, url: `https://www.kept.test/p` }))
 
-      expect(result.url).toBe(`${ALLOWED}/p`)
-      expect('domain' in result).toBe(false)
+      expect(result.url).toBe('https://www.kept.test/p')
+      expect(result.domain).toBe('kept.test')
     })
 
-    test(`${name}: is not added when the address is off the allow list`, async ({ serviceWorker }) => {
+    test(`${name}: is added blank when the address is off the allow list`, async ({ serviceWorker }) => {
       await startWith(serviceWorker, ALLOW_ONLY_KEPT)
 
       const result = await processed(serviceWorker, withId({ name, url: `${HIDDEN}/p` }))
 
       expect(result.url).toBe(NOT_ON_ALLOWLIST)
-      expect('domain' in result).toBe(false)
+      expect(result.domain).toBe('')
+    })
+
+    test(`${name}: is added blank when the address is on a filter list`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, FILTER_HIDDEN)
+
+      const result = await processed(serviceWorker, withId({ name, url: `${HIDDEN}/p` }))
+
+      expect(result.url).toBe('CATEGORY:EMAIL')
+      expect(result.domain).toBe('')
     })
 
     test(`${name}: is added with the registered domain on a domain-only match`, async ({ serviceWorker }) => {
@@ -230,7 +241,86 @@ test.describe('a domain field the record does not have', () => {
       expect(result.url).toBe('')
       expect(result.domain).toBe('example.com')
     })
+
+    test(`${name}: is added blank before configuration`, async ({ serviceWorker }) => {
+      const result = await processed(serviceWorker, withId({ name, url: `${ALLOWED}/p` }))
+
+      expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
+      expect(result.domain).toBe('')
+    })
+
+    test(`${name}: is added blank after a failure under on_failure hide`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, EMPTY_ALLOW_HIDE)
+
+      const result = await processed(serviceWorker, withId({ name, url: `${ALLOWED}/p` }))
+
+      expect(result.url).toBe('CATEGORY:REDACTION_FAILED')
+      expect(result.domain).toBe('')
+    })
+
+    test(`${name}: is not added after a failure under on_failure pass`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'pass' })
+
+      const given = withId({ name, url: `${ALLOWED}/p` })
+
+      expect(await processed(serviceWorker, given)).toEqual(given)
+    })
+
+    for (const address of ['http://192.0.2.7/p', 'http://localhost:8080/p', 'about:blank', '']) {
+      test(`${name}: is added blank for the shown address ${JSON.stringify(address)}, which has no registered domain`, async ({ serviceWorker }) => {
+        await startWith(serviceWorker)
+
+        const result = await processed(serviceWorker, withId({ name, url: address }))
+
+        expect(result.url).toBe(address)
+        expect(result.domain).toBe('')
+      })
+    }
   }
+
+  test('describes the url field, not the other addresses', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const result = await processed(serviceWorker, withId({
+      name: 'rex-page-event', url: `${ALLOWED}/now`, previous_url: `${HIDDEN}/before`, opener_url: 'https://other.test/opener',
+    }))
+
+    expect(result.previous_url).toBe(NOT_ON_ALLOWLIST)
+    expect(result.domain).toBe('kept.test')
+  })
+
+  test('is written inside the container of a record type that has one', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_ONLY_KEPT)
+
+    const result = await processed(serviceWorker, withId({
+      name: 'pdk-app-event', event_name: 'rex-history-visit-ceiling-exceeded', event_details: { recorded_url: `${ALLOWED}/p`, visit_count: 120 },
+    }))
+
+    expect(result.event_details.domain).toBe('kept.test')
+    expect('domain' in result).toBe(false)
+  })
+
+  test('a record type that names no domain field gains a field named domain', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, record_types: [{ name: 'custom-record', fields: { url: 'address' } }] })
+
+    const shown = await processed(serviceWorker, withId({ name: 'custom-record', address: `${ALLOWED}/p` }))
+    const hidden = await processed(serviceWorker, withId({ name: 'custom-record', address: `${HIDDEN}/p` }))
+
+    expect(shown.domain).toBe('kept.test')
+    expect(hidden.address).toBe(NOT_ON_ALLOWLIST)
+    expect(hidden.domain).toBe('')
+  })
+
+  test('a record type that names its domain field gains the field under that name', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...ALLOW_ONLY_KEPT, record_types: [{ name: 'custom-record', fields: { url: 'address', domain: 'site' } }] })
+
+    const shown = await processed(serviceWorker, withId({ name: 'custom-record', address: `${ALLOWED}/p` }))
+    const hidden = await processed(serviceWorker, withId({ name: 'custom-record', address: `${HIDDEN}/p` }))
+
+    expect(shown.site).toBe('kept.test')
+    expect('domain' in shown).toBe(false)
+    expect(hidden.site).toBe('')
+  })
 })
 
 test.describe('states', () => {

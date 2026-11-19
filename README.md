@@ -7,7 +7,7 @@ REX content processor that hides web addresses in records by allow, filter and d
 Collectors store records as they arrive, so a record that carries a web address stores it unless something changes it first. This module registers a `REXContentProcessor` with `rex-content-processing`. A collector that runs content processors on each record before storing it, such as `rex-data-collection` (and so `rex-local-download`) or `rex-passive-data-kit`, stores the addresses as this processor leaves them. An extension that does not include this module sends unredacted addresses.
 
 - A record is processed when its `name` (and its `event_name`, if the record type has one) matches a record type. Every other record passes through unchanged. The default record types are `rex-history-visit`, `rex-history-visit-aggregate`, `rex-page-event`, `rex-browsing-visit`, `rex-browsing-opener`, `rex-browsing-page` and the `pdk-app-event` visit ceiling events of `rex-history` and `rex-browsing` and its `rex-history-skipped` event.
-- A record is never dropped and no field is removed. Only the address fields named by its record type change, together with `filtered` and the list labels.
+- A record is never dropped and no field is removed. Only the address fields named by its record type change, together with `filtered` and the list labels. Every record whose address is judged also carries a domain field afterwards.
 - Before the configuration arrives, every address becomes `CATEGORY:NO_CONFIGURATION`. When the configuration names lists and `rex-lists` has not finished loading the lists of the current configuration, every address becomes `CATEGORY:NO_CONFIGURATION` too; this includes the moments after a configuration change that alters lists. When it names no list, the rules run at once and every address is allowed.
 - When a list named in the configuration has no entries, or a lookup fails, the record passes through unchanged unless `on_failure` is `hide`, which replaces its addresses with `CATEGORY:REDACTION_FAILED`.
 - A record whose address field is missing or is not a string passes through unchanged.
@@ -36,7 +36,7 @@ A record type says which fields of a record hold addresses:
 
 - `url`: the field holding the record's address. Its value decides `domain`, `title` and the list labels.
 - `title`: written only when the record has it.
-- `domain`: the registered domain, or `''` when the address is hidden. It is written when the record has the field. A record without the field gains it only on a domain-only match, with the registered domain; otherwise it still has no `domain`.
+- `domain`: the field that receives the registered domain of `url`. It is always written, and a record without the field gains it: the registered domain when the address is shown or is on a domain-only list, and `''` when the address is hidden or has no registered domain. A record type that names no `domain` field gets the field named `domain`. It describes `url` only, never the `other_addresses`.
 - `copies`: fields set to the same value as `url` in every state, such as `recorded_url`.
 - `other_addresses`: fields each resolved on its own by the same rules and replaced by the result. When any of them was changed, `filtered` is `true`. An entry that is absent or not a string is skipped.
 - `event_name`: restricts the type to records with that `event_name`.
@@ -61,7 +61,7 @@ Rules, in this order:
 | On a filter list | `CATEGORY:<category>` (`CATEGORY:null` without a category) | `''` | `''` | `filtered: true`, `filtered_by_list`, `allowed_by_list` if any |
 | Otherwise | unchanged | unchanged | registered domain | `filtered: false`, `allowed_by_list` if any |
 
-With no `allow_lists`, every address is allowed. The registered domain of an IP address or `localhost` is `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`. The `domain` column applies to a record that has a `domain` field, and to a domain-only match, which adds one.
+With no `allow_lists`, every address is allowed. The registered domain of an IP address or `localhost` is `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`. The `domain` column applies to every record in the table, whether or not the record arrived with a `domain` field. Before configuration and under `on_failure: "hide"` the domain is `''` too. A record that passes through unchanged (`enabled: false`, a failure under `on_failure: "pass"`, or an address field that is missing or not a string) gains no field.
 
 Fields named in `other_addresses` follow the same rules as `url`. Within one list, `rex-lists` matches the most specific pattern type first.
 

@@ -32,7 +32,6 @@ export interface AddressResult {
   domain: string
   filtered: boolean
   failed: boolean
-  domain_only_match?: boolean
   filtered_by_list?: string
   filtered_by_list_entry?: ListEntry
   allowed_by_list?: string
