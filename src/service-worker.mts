@@ -36,7 +36,7 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
   private applyConfiguration(configuration: REXConfiguration | undefined) {
     const section = configuration?.[CONFIGURATION_KEY]
 
-    if (typeof section !== 'object' || section === null) {
+    if (typeof section !== 'object' || section === null || Array.isArray(section)) {
       return
     }
 

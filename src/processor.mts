@@ -75,21 +75,20 @@ function hideDomain(record: AddressRecord, domainField: string): AddressRecord {
   return { ...record, [domainField]: '', filtered: true }
 }
 
-function domainAfter(record: AddressRecord, domainField: string, result: AddressResult): AddressRecord {
+function domainAfter(record: AddressRecord, domainField: string, hostname: string, result: AddressResult): AddressRecord {
   if (result.url.startsWith('CATEGORY:')) {
     return { ...record, [domainField]: '', filtered: true }
   }
 
-  if (result.domain === '') {
-    return { ...record, filtered: false }
-  }
-
-  return { ...record, [domainField]: result.domain, filtered: false }
+  return { ...record, [domainField]: result.domain === '' ? hostname : result.domain, filtered: false }
 }
+
+const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:\/\//i
 
 function hostnameOf(domain: string): string | null {
   try {
-    const hostname = new URL(`https://${domain}/`).hostname
+    const address = SCHEME_PREFIX.test(domain) ? domain : `https://${domain}/`
+    const hostname = new URL(address).hostname
 
     return hostname === '' || hostname.includes('%') ? null : hostname
   } catch {
@@ -246,6 +245,6 @@ export class REXContentProcessingUrlRedactionProcessor extends REXContentProcess
       return config.on_failure === 'hide' ? hideDomain(scope, domainField) : null
     }
 
-    return domainAfter(scope, domainField, result)
+    return domainAfter(scope, domainField, hostname, result)
   }
 }

@@ -749,7 +749,7 @@ test.describe('settings that cannot be used', () => {
     expect(result.url).toBe(NOT_ON_ALLOWLIST)
   })
 
-  for (const section of [null, 'text', 4]) {
+  for (const section of [null, 'text', 4, []]) {
     test(`a module section of ${JSON.stringify(section)} does not throw and leaves addresses hidden`, async ({ serviceWorker }) => {
       const threw = await serviceWorker.evaluate((value) => {
         try {
@@ -768,4 +768,55 @@ test.describe('settings that cannot be used', () => {
       expect(result.url).toBe('CATEGORY:NO_CONFIGURATION')
     })
   }
+})
+
+test.describe('a domain-only type keeps only the host', () => {
+  const record_types = [{ name: 'custom-domain', fields: { domain: 'site' } }]
+  const FILTER_BLOCKED = { lists: { 'record-filter': [listEntry('blocked.com', 'BLOCKED')] }, filter_lists: ['record-filter'], record_types }
+
+  for (const value of ['http://blocked.com', 'https://blocked.com/x']) {
+    test(`${value} on a filter list with no allow list is blanked`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, FILTER_BLOCKED)
+
+      const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: value }))
+
+      expect(result.site).toBe('')
+      expect(result.filtered).toBe(true)
+    })
+  }
+
+  for (const [value, kept] of [['10.0.0.5/path?q=secret', '10.0.0.5'], ['user:pw@localhost/x', 'localhost'], ['sub.kept.test/p?q=1', 'kept.test']]) {
+    test(`${value} is written as ${kept} and not filtered`, async ({ serviceWorker }) => {
+      await startWith(serviceWorker, FILTER_BLOCKED)
+
+      const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: value }))
+
+      expect(result.site).toBe(kept)
+      expect(result.filtered).toBe(false)
+    })
+  }
+
+  test('a real host is blanked in the failure state under hide', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'hide', record_types })
+
+    const result = await processed(serviceWorker, withId({ name: 'custom-domain', site: 'hidden.test' }))
+
+    expect(result.site).toBe('')
+    expect(result.filtered).toBe(true)
+  })
+})
+
+test.describe('a configuration applied after an unusable section', () => {
+  test('takes effect', async ({ serviceWorker }) => {
+    const onFailure = await serviceWorker.evaluate(() => {
+      const plugin = self.rexContentProcessingUrlRedactionPlugin
+
+      plugin.applyConfiguration({ content_processing_url_redaction: null })
+      plugin.applyConfiguration({ content_processing_url_redaction: { enabled: true, on_failure: 'hide' } })
+
+      return plugin.processor.config.on_failure
+    })
+
+    expect(onFailure).toBe('hide')
+  })
 })
