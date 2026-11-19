@@ -4,8 +4,8 @@
     "page_events": {
         "enabled": true,
         "sites": [{
-            "id": "google",
-            "patterns": ["*.google.com"],
+            "id": "example",
+            "patterns": ["*.example.com"],
             "events": [{
                 "type": "click",
                 "targets": ["a[href]"],
