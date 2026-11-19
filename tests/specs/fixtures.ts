@@ -6,12 +6,14 @@ import { fileURLToPath } from 'url';
 
 export const test = base.extend<{
   backForwardCache: boolean
+  hostResolverRules: string
   context: BrowserContext
   extensionId: string,
   serviceWorker:ServiceWorker,
 }>({
   backForwardCache: [false, { option: true }],
-  context: async ({ backForwardCache }, use) => {
+  hostResolverRules: ['', { option: true }],
+  context: async ({ backForwardCache, hostResolverRules }, use) => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
 
@@ -23,6 +25,7 @@ export const test = base.extend<{
       args: [
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
+        ...(hostResolverRules === '' ? [] : [`--host-resolver-rules=${hostResolverRules}`]),
       ],
     });
 

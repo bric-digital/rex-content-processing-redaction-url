@@ -124,9 +124,10 @@ npm test
 npm run lint
 ```
 
-`pretest` bundles the test extension in `tests/extension/`, which loads `rex-page-events`, `rex-lists`, this module and a capture module that runs the content processors on each record in order, as a collector does. Tests supply lists through the `lists` section of the configuration. The specs:
+`pretest` bundles the test extension in `tests/extension/`, which loads `rex-page-events`, `rex-lists`, `rex-passive-data-kit`, this module and a capture module that runs the content processors on a copy of each record in order, as a collector does. `npm test` also starts a local test server (`tests/scripts/run-server.js`, port 9191) that serves test pages and stores the records `rex-passive-data-kit` uploads. Tests supply lists through the `lists` section of the configuration. The specs:
 
 - `record-types.spec.ts`: each default record type, `record_types` in configuration, and the states (before configuration, lists not loaded, failure with each `on_failure`, unknown records, non-string addresses).
 - `addresses.spec.ts`: the list rules on `rex-page-event` records, that `enabled: false` passes records through, and that addresses are hidden before configuration arrives.
 - `browsing-addresses.spec.ts`: the list rules on `rex-browsing-visit`, `rex-browsing-opener` and `rex-browsing-page` records, and that other records pass through.
 - `address-rules.spec.ts`: the rules for one address.
+- `server-records.spec.ts`: end to end. Pages are visited under `example` host names mapped to the test server, `rex-page-events` records each visit, `rex-passive-data-kit` uploads the records, and the assertions read what the server stored: each list rule, a configuration without this module's section, and one record for every visit.
