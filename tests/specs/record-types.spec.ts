@@ -646,7 +646,7 @@ test.describe('visit ceiling events', () => {
     expectOtherFieldsKept(result, given, ['recorded_url', 'domain', 'filtered'])
   })
 
-  test('rex-browsing: a domain off the allow list is blanked inside event_details', async ({ serviceWorker }) => {
+  test('rex-browsing without an address: a domain off the allow list is blanked inside event_details', async ({ serviceWorker }) => {
     await startWith(serviceWorker, ALLOW_ONLY_KEPT)
 
     const given = browsingCeiling('hidden.test')
@@ -657,7 +657,7 @@ test.describe('visit ceiling events', () => {
     expectOtherFieldsKept(result, given, ['domain', 'filtered'])
   })
 
-  test('rex-browsing: an allowed domain is kept', async ({ serviceWorker }) => {
+  test('rex-browsing without an address: an allowed domain is kept', async ({ serviceWorker }) => {
     await startWith(serviceWorker, ALLOW_ONLY_KEPT)
 
     const given = browsingCeiling('kept.test')
@@ -668,7 +668,7 @@ test.describe('visit ceiling events', () => {
     expectOtherFieldsKept(result, given, ['filtered'])
   })
 
-  test('rex-browsing: before configuration the domain is blanked', async ({ serviceWorker }) => {
+  test('rex-browsing without an address: before configuration the domain is blanked', async ({ serviceWorker }) => {
     const given = browsingCeiling('hidden.test')
     const result = await processed(serviceWorker, given)
 
@@ -677,7 +677,7 @@ test.describe('visit ceiling events', () => {
     expectOtherFieldsKept(result, given, ['domain', 'filtered'])
   })
 
-  test('rex-browsing: a failure leaves the event unchanged under pass', async ({ serviceWorker }) => {
+  test('rex-browsing without an address: a failure leaves the event unchanged under pass', async ({ serviceWorker }) => {
     await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'pass' })
 
     const given = browsingCeiling('hidden.test')
@@ -685,7 +685,7 @@ test.describe('visit ceiling events', () => {
     expect(await processed(serviceWorker, given)).toEqual(given)
   })
 
-  test('rex-browsing: a failure blanks the domain under hide', async ({ serviceWorker }) => {
+  test('rex-browsing without an address: a failure blanks the domain under hide', async ({ serviceWorker }) => {
     await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'hide' })
 
     const result = await processed(serviceWorker, browsingCeiling('hidden.test'))
@@ -722,6 +722,165 @@ test.describe('visit ceiling events', () => {
     }, given)
 
     expect(unchanged).toBe(true)
+  })
+})
+
+function browsingCeilingWithAddress(address, domain) {
+  return withId({
+    name: 'pdk-app-event',
+    event_name: 'rex-browsing-visit-ceiling-exceeded',
+    event_details: { url: address, domain, visit_count: 120, ceiling: 100, visits_in_drain: 30, date: 1795015358162 },
+  })
+}
+
+test.describe('rex-browsing visit ceiling event that carries its address', () => {
+  const ALLOW_EXAMPLE_COM = { lists: { 'record-allow': [listEntry('example.com', 'ALLOWED', 'domain')] }, allow_lists: ['record-allow'] }
+  const SHOWN = 'https://www.example.com/p?q=1'
+  const OFF_LIST = 'https://www.example.edu/p?q=1'
+
+  test('an address off the allow list is replaced and its domain blanked inside event_details', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const given = browsingCeilingWithAddress(OFF_LIST, 'example.edu')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.url).toBe(NOT_ON_ALLOWLIST)
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expect(result.event_details.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
+    expectOtherFieldsKept(result, given, ['url', 'domain', 'filtered', 'filtered_by_list'])
+  })
+
+  test('an allowed address is kept and its domain is the registered domain of the address', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const given = browsingCeilingWithAddress(SHOWN, 'www.example.com')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.url).toBe(SHOWN)
+    expect(result.event_details.domain).toBe('example.com')
+    expect(result.event_details.filtered).toBe(false)
+    expectOtherFieldsKept(result, given, ['domain', 'filtered', 'allowed_by_list', 'allowed_by_list_entry'])
+  })
+
+  test('an address on a filter list narrower than its domain is replaced by the category', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, {
+      lists: { 'record-filter': [listEntry('mail.example.com', 'EMAIL')] },
+      filter_lists: ['record-filter'],
+    })
+
+    const result = await processed(serviceWorker, browsingCeilingWithAddress('https://mail.example.com/inbox', 'example.com'))
+
+    expect(result.event_details.url).toBe('CATEGORY:EMAIL')
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+  })
+
+  test('an address on a domain-only list is blanked, keeps its registered domain and is marked filtered', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, {
+      lists: { 'record-domain-only': [listEntry('example.net', 'ANY', 'domain')] },
+      domain_only_lists: ['record-domain-only'],
+    })
+
+    const result = await processed(serviceWorker, browsingCeilingWithAddress('https://www.example.net/p', 'example.net'))
+
+    expect(result.event_details.url).toBe('')
+    expect(result.event_details.domain).toBe('example.net')
+    expect(result.event_details.filtered).toBe(true)
+    expect(result.event_details.filtered_by_list).toBe('record-domain-only')
+  })
+
+  test('before configuration the address is hidden and the domain blanked', async ({ serviceWorker }) => {
+    const given = browsingCeilingWithAddress(SHOWN, 'example.com')
+    const result = await processed(serviceWorker, given)
+
+    expect(result.event_details.url).toBe('CATEGORY:NO_CONFIGURATION')
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+    expectOtherFieldsKept(result, given, ['url', 'domain', 'filtered'])
+  })
+
+  test('a failure leaves the event unchanged under pass', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'pass' })
+
+    const given = browsingCeilingWithAddress(OFF_LIST, 'example.edu')
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('a failure hides the address and blanks the domain under hide', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { 'record-empty': [] }, allow_lists: ['record-empty'], on_failure: 'hide' })
+
+    const result = await processed(serviceWorker, browsingCeilingWithAddress(OFF_LIST, 'example.edu'))
+
+    expect(result.event_details.url).toBe('CATEGORY:REDACTION_FAILED')
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+  })
+
+  test('an event whose address is not a string is judged from its domain', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const hidden = await processed(serviceWorker, browsingCeilingWithAddress(12345, 'example.edu'))
+    const shown = await processed(serviceWorker, browsingCeilingWithAddress(12345, 'www.example.com'))
+
+    expect(hidden.event_details).toMatchObject({ url: 12345, domain: '', filtered: true })
+    expect(shown.event_details).toMatchObject({ url: 12345, domain: 'example.com', filtered: false })
+  })
+
+  test('an event without an address is judged from its domain', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const hiddenGiven = browsingCeiling('example.edu')
+    const hidden = await processed(serviceWorker, hiddenGiven)
+    const shown = await processed(serviceWorker, browsingCeiling('www.example.com'))
+
+    expect(hidden.event_details.domain).toBe('')
+    expect(hidden.event_details.filtered).toBe(true)
+    expect('url' in hidden.event_details).toBe(false)
+    expectOtherFieldsKept(hidden, hiddenGiven, ['domain', 'filtered'])
+    expect(shown.event_details.domain).toBe('example.com')
+    expect(shown.event_details.filtered).toBe(false)
+  })
+
+  test('an event without an address has its domain blanked before configuration', async ({ serviceWorker }) => {
+    const result = await processed(serviceWorker, browsingCeiling('example.com'))
+
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+  })
+})
+
+test.describe('record types that share a name', () => {
+  const record_types = [
+    { name: 'custom-record', fields: { url: 'address', domain: 'site' } },
+    { name: 'custom-record', fields: { domain: 'site' } },
+  ]
+  const ALLOW_EXAMPLE_COM = { lists: { 'record-allow': [listEntry('example.com', 'ALLOWED', 'domain')] }, allow_lists: ['record-allow'], record_types }
+
+  test('a record that holds the address of the first type is judged by the first type', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const result = await processed(serviceWorker, withId({ name: 'custom-record', address: 'https://www.example.edu/p', site: 'example.edu' }))
+
+    expect(result).toMatchObject({ address: NOT_ON_ALLOWLIST, site: '', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST' })
+  })
+
+  test('a record without the address of the first type is judged by the next type it can be judged by', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const result = await processed(serviceWorker, withId({ name: 'custom-record', site: 'example.edu' }))
+
+    expect(result).toMatchObject({ site: '', filtered: true })
+    expect('address' in result).toBe(false)
+  })
+
+  test('a record that no type of its name can be judged by arrives unchanged', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, ALLOW_EXAMPLE_COM)
+
+    const given = withId({ name: 'custom-record', other: 'https://www.example.edu/p' })
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
   })
 })
 

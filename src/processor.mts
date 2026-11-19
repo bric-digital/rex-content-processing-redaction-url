@@ -3,7 +3,7 @@ import { listsLoaded } from '@bric/rex-lists/service-worker'
 
 import { type AddressRecord, applyMainResult, applyOtherResult } from './apply-result.mjs'
 import { resolveAddress } from './address-rules.mjs'
-import { recordTypeOf } from './record-types.mjs'
+import { recordTypesOf } from './record-types.mjs'
 import { type AddressFields, type AddressResult, type RecordType, type REXContentProcessingRedactionUrlConfiguration } from './types.mjs'
 
 const LOG_PREFIX = '[rex-content-processing-redaction-url]'
@@ -13,6 +13,11 @@ const REDACTION_FAILED = 'CATEGORY:REDACTION_FAILED'
 interface ResolvedRecord {
   main: AddressResult
   others: Map<string, AddressResult>
+}
+
+interface RedactableRecord {
+  type: RecordType
+  scope: AddressRecord
 }
 
 function hiddenResult(label: string): AddressResult {
@@ -124,6 +129,18 @@ function isRedactable(scope: AddressRecord, fields: AddressFields): boolean {
   return false
 }
 
+function redactableRecordOf(config: REXContentProcessingRedactionUrlConfiguration | null, content: unknown): RedactableRecord | null {
+  for (const type of recordTypesOf(config, content)) {
+    const scope = scopeOf(content as AddressRecord, type)
+
+    if (scope !== null && isRedactable(scope, type.fields)) {
+      return { type, scope }
+    }
+  }
+
+  return null
+}
+
 function hiddenScope(scope: AddressRecord, fields: AddressFields, label: string): AddressRecord {
   if (fields.url !== undefined) {
     return hideAddresses(scope, fields.url, fields, label)
@@ -186,13 +203,13 @@ export class REXContentProcessingRedactionUrlProcessor extends REXContentProcess
 
   async processContent(content: unknown): Promise<unknown> {
     try {
-      const type = recordTypeOf(this.config, content)
+      const redactable = redactableRecordOf(this.config, content)
 
-      if (type === null) {
+      if (redactable === null) {
         return content
       }
 
-      return await this.processMatched(content as AddressRecord, type)
+      return await this.processMatched(content as AddressRecord, redactable)
     } catch (error) {
       console.warn(`${LOG_PREFIX} could not process a record`, error)
 
@@ -202,32 +219,21 @@ export class REXContentProcessingRedactionUrlProcessor extends REXContentProcess
 
   private failureResult(content: unknown): unknown {
     try {
-      const type = recordTypeOf(this.config, content)
+      const redactable = redactableRecordOf(this.config, content)
 
-      if (type === null || this.config?.on_failure !== 'hide') {
+      if (redactable === null || this.config?.on_failure !== 'hide') {
         return content
       }
 
-      const record = content as AddressRecord
-      const scope = scopeOf(record, type)
+      const { type, scope } = redactable
 
-      if (scope === null || isRedactable(scope, type.fields) === false) {
-        return content
-      }
-
-      return withScope(record, type, hiddenScope(scope, type.fields, REDACTION_FAILED))
+      return withScope(content as AddressRecord, type, hiddenScope(scope, type.fields, REDACTION_FAILED))
     } catch {
       return content
     }
   }
 
-  private async processMatched(record: AddressRecord, type: RecordType): Promise<unknown> {
-    const scope = scopeOf(record, type)
-
-    if (scope === null || isRedactable(scope, type.fields) === false) {
-      return record
-    }
-
+  private async processMatched(record: AddressRecord, { type, scope }: RedactableRecord): Promise<unknown> {
     const redacted = await this.redactScope(scope, type.fields)
 
     return redacted === null ? record : withScope(record, type, redacted)

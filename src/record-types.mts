@@ -10,6 +10,7 @@ export const DEFAULT_RECORD_TYPES: RecordType[] = [
   { name: 'rex-browsing-opener', fields: { url: 'url', domain: 'domain' } },
   { name: 'rex-browsing-page', fields: { url: 'url', domain: 'domain' } },
   { name: 'pdk-app-event', event_name: 'rex-history-visit-ceiling-exceeded', container: 'event_details', fields: { url: 'recorded_url', domain: 'domain' } },
+  { name: 'pdk-app-event', event_name: 'rex-browsing-visit-ceiling-exceeded', container: 'event_details', fields: { url: 'url', domain: 'domain' } },
   { name: 'pdk-app-event', event_name: 'rex-browsing-visit-ceiling-exceeded', container: 'event_details', fields: { domain: 'domain' } },
   { name: 'pdk-app-event', event_name: 'rex-history-skipped', container: 'event_details', fields: { domain: 'domain' } },
 ]
@@ -76,18 +77,12 @@ function matches(type: RecordType, record: Record<string, unknown>): boolean {
   return type.event_name === undefined || type.event_name === record.event_name
 }
 
-export function recordTypeOf(config: REXContentProcessingRedactionUrlConfiguration | null, content: unknown): RecordType | null {
+export function recordTypesOf(config: REXContentProcessingRedactionUrlConfiguration | null, content: unknown): RecordType[] {
   if (typeof content !== 'object' || content === null) {
-    return null
+    return []
   }
 
   const types = config?.record_types ?? DEFAULT_RECORD_TYPES
 
-  for (const type of types) {
-    if (matches(type, content as Record<string, unknown>)) {
-      return type
-    }
-  }
-
-  return null
+  return types.filter((type) => matches(type, content as Record<string, unknown>))
 }
