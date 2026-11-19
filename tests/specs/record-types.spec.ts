@@ -1022,6 +1022,65 @@ test.describe('not_on_allowlist_behavior', () => {
     expect(result.event_details.filtered).toBe(false)
   })
 
+  const FILTER_EXAMPLE_EDU = {
+    lists: { ...ALLOW_EXAMPLE_COM.lists, 'record-filter': [listEntry('example.edu', 'BLOCKED', 'domain')] },
+    allow_lists: ['record-allow'],
+    filter_lists: ['record-filter'],
+  }
+
+  test('domain_only gives a record on no allow list and on a filter list the category and blanks its title and domain', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...FILTER_EXAMPLE_EDU, not_on_allowlist_behavior: 'domain_only' })
+
+    const given = withId(OFF_LIST_VISIT)
+    const result = await processed(serviceWorker, given)
+
+    expect(result).toMatchObject({ url: 'CATEGORY:BLOCKED', recorded_url: 'CATEGORY:BLOCKED', title: '', domain: '', filtered: true, filtered_by_list: 'record-filter' })
+    expect(result.filtered_by_list_entry).toMatchObject({ list_name: 'record-filter', pattern: 'example.edu' })
+    expect('allowed_by_list' in result).toBe(false)
+  })
+
+  test('domain_only gives an other address on no allow list and on a filter list the category', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...FILTER_EXAMPLE_EDU, not_on_allowlist_behavior: 'domain_only' })
+
+    const result = await processed(serviceWorker, withId({ name: 'rex-page-event', url: 'https://www.example.com/now', title: 'Now', link_url: 'https://www.example.edu/out', previous_url: 'https://www.example.net/before' }))
+
+    expect(result).toMatchObject({ url: 'https://www.example.com/now', domain: 'example.com', link_url: 'CATEGORY:BLOCKED', previous_url: '', filtered: true })
+  })
+
+  test('domain_only blanks the domain of a domain-only record type on no allow list and on a filter list', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...FILTER_EXAMPLE_EDU, not_on_allowlist_behavior: 'domain_only' })
+
+    const result = await processed(serviceWorker, skipped('www.example.edu'))
+
+    expect(result.event_details.domain).toBe('')
+    expect(result.event_details.filtered).toBe(true)
+  })
+
+  test('domain_only with a named filter list that has no entries leaves the record unchanged under on_failure pass', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { ...ALLOW_EXAMPLE_COM.lists, 'record-empty': [] }, allow_lists: ['record-allow'], filter_lists: ['record-empty'], on_failure: 'pass', not_on_allowlist_behavior: 'domain_only' })
+
+    const given = withId(OFF_LIST_VISIT)
+
+    expect(await processed(serviceWorker, given)).toEqual(given)
+  })
+
+  test('domain_only with a named filter list that has no entries hides the record under on_failure hide', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { lists: { ...ALLOW_EXAMPLE_COM.lists, 'record-empty': [] }, allow_lists: ['record-allow'], filter_lists: ['record-empty'], on_failure: 'hide', not_on_allowlist_behavior: 'domain_only' })
+
+    const result = await processed(serviceWorker, withId(OFF_LIST_VISIT))
+
+    expect(result).toMatchObject({ url: 'CATEGORY:REDACTION_FAILED', recorded_url: 'CATEGORY:REDACTION_FAILED', title: '', domain: '', filtered: true })
+  })
+
+  test('category gives a record on no allow list and on a filter list only the not-on-allowlist label', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, { ...FILTER_EXAMPLE_EDU, not_on_allowlist_behavior: 'category' })
+
+    const given = withId(OFF_LIST_VISIT)
+
+    expect(await processed(serviceWorker, given))
+      .toEqual({ ...given, url: NOT_ON_ALLOWLIST, recorded_url: NOT_ON_ALLOWLIST, title: '', domain: '', filtered: true, filtered_by_list: 'NOT_ON_ALLOWLIST' })
+  })
+
   test('category replaces the address of a record on no allow list and logs no warning', async ({ serviceWorker }) => {
     await collectWarnings(serviceWorker)
     await startWith(serviceWorker, { ...ALLOW_EXAMPLE_COM, not_on_allowlist_behavior: 'category' })

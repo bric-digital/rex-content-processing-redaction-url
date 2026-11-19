@@ -143,6 +143,20 @@ test.describe('records the server received', () => {
     expect(record.filtered_by_list).toBe('NOT_ON_ALLOWLIST')
   })
 
+  test('with not_on_allowlist_behavior domain_only an address off the allow list and on a filter list arrives as its category with a blank title and domain', async ({ serviceWorker }) => {
+    const lists = { ...LISTS, 'server-filter': [...LISTS['server-filter'], listEntry('example.edu', 'TEST_OFF_LIST_FILTERED', 'domain')] }
+
+    await startWithRules(serviceWorker, { ...RULES, lists, not_on_allowlist_behavior: 'domain_only' })
+
+    const record = await visitedRecordOnServer(serviceWorker, OFF_ALLOW_LIST_HOST)
+
+    expect(record.url).toBe('CATEGORY:TEST_OFF_LIST_FILTERED')
+    expect(record.title).toBe('')
+    expect(record.domain).toBe('')
+    expect(record.filtered).toBe(true)
+    expect(record.filtered_by_list).toBe('server-filter')
+  })
+
   test('an address on a filter list arrives as its category with a blank title and domain', async ({ serviceWorker }) => {
     await startWithRules(serviceWorker)
 

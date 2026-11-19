@@ -68,18 +68,18 @@ function domainOnlyResult(match: ListMatch, domain: string): AddressResult {
   }
 }
 
-function notOnAllowListResult(config: REXContentProcessingRedactionUrlConfiguration, domain: string): AddressResult {
-  if (config.not_on_allowlist_behavior === 'domain_only') {
-    return {
-      url: '',
-      title: '',
-      domain,
-      filtered: true,
-      failed: false,
-      filtered_by_list: NOT_ON_ALLOWLIST,
-    }
+function domainOnlyFallbackResult(domain: string): AddressResult {
+  return {
+    url: '',
+    title: '',
+    domain,
+    filtered: true,
+    failed: false,
+    filtered_by_list: NOT_ON_ALLOWLIST,
   }
+}
 
+function notOnAllowListResult(): AddressResult {
   return {
     url: `CATEGORY:${NOT_ON_ALLOWLIST}`,
     title: '',
@@ -126,14 +126,20 @@ async function applyRules(config: REXContentProcessingRedactionUrlConfiguration,
   const allowLists = config.allow_lists ?? []
   const allowMatch = await findListMatch(url, allowLists)
 
-  if (allowLists.length > 0 && allowMatch === null) {
-    return notOnAllowListResult(config, domain)
+  const notOnAllowList = allowLists.length > 0 && allowMatch === null
+
+  if (notOnAllowList && config.not_on_allowlist_behavior !== 'domain_only') {
+    return notOnAllowListResult()
   }
 
   const filterMatch = await findListMatch(url, config.filter_lists ?? [])
 
   if (filterMatch !== null) {
     return filterListResult(filterMatch, allowMatch)
+  }
+
+  if (notOnAllowList) {
+    return domainOnlyFallbackResult(domain)
   }
 
   return withAllowMatch(unchangedResult(url, title, domain), allowMatch)
