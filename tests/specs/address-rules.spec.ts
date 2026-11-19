@@ -77,11 +77,30 @@ test.describe('Address rules', () => {
       .toMatchObject({ url: '', title: '', domain: 'example.co.uk', filtered: true, filtered_by_list: 'd', failed: false })
   })
 
-  test('a domain-only match on an address with no registered domain leaves the domain empty', async ({ serviceWorker }) => {
+  test('a domain-only match on an address with no registered domain keeps the host', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'ip', '127.0.0.1', 'ANY')
 
     expect(await resolve(serviceWorker, { domain_only_lists: ['ip'] }, 'http://127.0.0.1/x', 'T'))
-      .toMatchObject({ url: '', title: '', domain: '' })
+      .toMatchObject({ url: '', title: '', domain: '127.0.0.1' })
+  })
+
+  for (const [address, host] of [['http://192.0.2.7/p', '192.0.2.7'], ['http://localhost:8080/p', 'localhost']]) {
+    test(`the shown address ${address}, which has no registered domain, keeps the host ${host} as its domain`, async ({ serviceWorker }) => {
+      expect(await resolve(serviceWorker, {}, address, 'T'))
+        .toMatchObject({ url: address, title: 'T', domain: host, filtered: false, failed: false })
+    })
+
+    test(`the address ${address} off the allow list gets a blank domain`, async ({ serviceWorker }) => {
+      await addListEntry(serviceWorker, 'a', 'example.com', 'ALLOWED')
+
+      expect(await resolve(serviceWorker, { allow_lists: ['a'] }, address, 'T'))
+        .toMatchObject({ url: 'CATEGORY:NOT_ON_ALLOWLIST', title: '', domain: '', filtered: true })
+    })
+  }
+
+  test('a shown address with no host gets a blank domain', async ({ serviceWorker }) => {
+    expect(await resolve(serviceWorker, {}, 'about:blank', 'T'))
+      .toMatchObject({ url: 'about:blank', title: 'T', domain: '', filtered: false, failed: false })
   })
 
   test('a domain-only match carries its list entry', async ({ serviceWorker }) => {

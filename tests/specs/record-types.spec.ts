@@ -266,8 +266,19 @@ test.describe('a domain field the record does not have', () => {
       expect(await processed(serviceWorker, given)).toEqual(given)
     })
 
-    for (const address of ['http://192.0.2.7/p', 'http://localhost:8080/p', 'about:blank', '']) {
-      test(`${name}: is added blank for the shown address ${JSON.stringify(address)}, which has no registered domain`, async ({ serviceWorker }) => {
+    for (const [address, host] of [['http://192.0.2.7/p', '192.0.2.7'], ['http://localhost:8080/p', 'localhost']]) {
+      test(`${name}: is added with the host for the shown address ${JSON.stringify(address)}, which has no registered domain`, async ({ serviceWorker }) => {
+        await startWith(serviceWorker)
+
+        const result = await processed(serviceWorker, withId({ name, url: address }))
+
+        expect(result.url).toBe(address)
+        expect(result.domain).toBe(host)
+      })
+    }
+
+    for (const address of ['about:blank', '']) {
+      test(`${name}: is added blank for the shown address ${JSON.stringify(address)}, which has no host`, async ({ serviceWorker }) => {
         await startWith(serviceWorker)
 
         const result = await processed(serviceWorker, withId({ name, url: address }))

@@ -36,7 +36,7 @@ A record type says which fields of a record hold addresses:
 
 - `url`: the field holding the record's address. Its value decides `domain`, `title` and the list labels.
 - `title`: written only when the record has it.
-- `domain`: the field that receives the registered domain of `url`. It is always written, and a record without the field gains it: the registered domain when the address is shown or is on a domain-only list, and `''` when the address is hidden or has no registered domain. A record type that names no `domain` field gets the field named `domain`. It describes `url` only, never the `other_addresses`.
+- `domain`: the field that receives the registered domain of `url`. It is always written, and a record without the field gains it: the registered domain when the address is shown or is on a domain-only list, and `''` when the address is hidden or has no host. An address whose host has no registered domain (an IP address or `localhost`) gets the host itself. A record type that names no `domain` field gets the field named `domain`. It describes `url` only, never the `other_addresses`.
 - `copies`: fields set to the same value as `url` in every state, such as `recorded_url`.
 - `other_addresses`: fields each resolved on its own by the same rules and replaced by the result. When any of them was changed, `filtered` is `true`. An entry that is absent or not a string is skipped.
 - `event_name`: restricts the type to records with that `event_name`.
@@ -61,7 +61,7 @@ Rules, in this order:
 | On a filter list | `CATEGORY:<category>` (`CATEGORY:null` without a category) | `''` | `''` | `filtered: true`, `filtered_by_list`, `allowed_by_list` if any |
 | Otherwise | unchanged | unchanged | registered domain | `filtered: false`, `allowed_by_list` if any |
 
-With no `allow_lists`, every address is allowed. The registered domain of an IP address or `localhost` is `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`. The `domain` column applies to every record in the table, whether or not the record arrived with a `domain` field. Before configuration and under `on_failure: "hide"` the domain is `''` too. A record that passes through unchanged (`enabled: false`, a failure under `on_failure: "pass"`, or an address field that is missing or not a string) gains no field.
+With no `allow_lists`, every address is allowed. Where the table says registered domain, an address whose host has no registered domain (an IP address such as `192.0.2.7`, or `localhost`) gets the host itself, and an address with no host, such as `about:blank`, gets `''`. A field is never removed from a record: a hidden `title` or `domain` is written as `''`. The `domain` column applies to every record in the table, whether or not the record arrived with a `domain` field. Before configuration and under `on_failure: "hide"` the domain is `''` too. A record that passes through unchanged (`enabled: false`, a failure under `on_failure: "pass"`, or an address field that is missing or not a string) gains no field.
 
 Fields named in `other_addresses` follow the same rules as `url`. Within one list, `rex-lists` matches the most specific pattern type first.
 
