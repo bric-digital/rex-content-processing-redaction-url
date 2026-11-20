@@ -1,5 +1,5 @@
 {
-  "name": "@bric/rex-content-processing-url-redaction",
+  "name": "@bric/rex-content-processing-redaction-url",
   "type": "module",
   "description": "REX content processor that hides web addresses in records by allow, filter and domain-only lists.",
   "exports": {
@@ -8,6 +8,7 @@
   "scripts": {
     "pretest": "node tests/scripts/build-test-bundle.js",
     "test": "playwright test",
+    "server": "node tests/scripts/run-server.js",
     "lint": "eslint src"
   },
   "dependencies": {
@@ -18,10 +19,12 @@
   },
   "devDependencies": {
     "@bric/rex-page-events": "github:bric-digital/rex-page-events",
+    "@bric/rex-passive-data-kit": "github:bric-digital/rex-passive-data-kit",
     "@playwright/test": "1.65.0",
     "express": "^5.3.0"
   },
   "overrides": {
+    "@bric/rex-content-processing": "$@bric/rex-content-processing",
     "@bric/rex-core": "$@bric/rex-core",
     "@bric/rex-lists": "$@bric/rex-lists",
     "@bric/rex-types": "$@bric/rex-types"

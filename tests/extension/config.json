@@ -1,6 +1,6 @@
 {
     "configuration_url": "config.json",
-    "identifier": "rex-content-processing-url-redaction-test",
+    "identifier": "rex-content-processing-redaction-url-test",
     "page_events": {
         "enabled": true,
         "sites": [{
@@ -92,7 +92,7 @@
         }]
     },
     "ui": [{
-        "title": "REX Content Processing URL Redaction Test Extension",
+        "title": "REX Content Processing Redaction URL Test Extension",
         "identifier": "main",
         "default": true
     }]

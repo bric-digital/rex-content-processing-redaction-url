@@ -1,18 +1,19 @@
 import { type REXConfiguration } from '@bric/rex-core/common'
 import rexCorePlugin, { REXServiceWorkerModule, registerREXModule } from '@bric/rex-core/service-worker'
 
-import { CONFIGURATION_DETAILS, CONFIGURATION_KEY } from './configuration.mjs'
-import { REXContentProcessingUrlRedactionProcessor } from './processor.mjs'
-import { type REXContentProcessingUrlRedactionConfiguration } from './types.mjs'
+import { CONFIGURATION_DETAILS, CONFIGURATION_KEY, normalizeConfiguration } from './configuration.mjs'
+import { REXContentProcessingRedactionUrlProcessor } from './processor.mjs'
+import { type REXContentProcessingRedactionUrlConfiguration } from './types.mjs'
 
+const LOG_PREFIX = '[rex-content-processing-redaction-url]'
 const CONFIGURATION_TIMEOUT_MS = 10000
 
-class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
-  config: REXContentProcessingUrlRedactionConfiguration | null = null
-  processor: REXContentProcessingUrlRedactionProcessor = new REXContentProcessingUrlRedactionProcessor()
+class REXContentProcessingRedactionUrlModule extends REXServiceWorkerModule {
+  config: REXContentProcessingRedactionUrlConfiguration | null = null
+  processor: REXContentProcessingRedactionUrlProcessor = new REXContentProcessingRedactionUrlProcessor()
 
   moduleName() {
-    return 'ContentProcessingUrlRedactionModule'
+    return 'ContentProcessingRedactionUrlModule'
   }
 
   setup() {
@@ -24,34 +25,61 @@ class REXContentProcessingUrlRedactionModule extends REXServiceWorkerModule {
     return CONFIGURATION_DETAILS
   }
 
-  refreshConfiguration() {
-    rexCorePlugin.handleMessage({
-      messageType: 'waitForConfiguration',
-      event: { timeout: CONFIGURATION_TIMEOUT_MS }
-    }, null, (configuration: REXConfiguration) => {
-      this.applyConfiguration(configuration)
+  refreshConfiguration(): Promise<void> {
+    return new Promise((resolve) => {
+      rexCorePlugin.handleMessage({
+        messageType: 'waitForConfiguration',
+        event: { timeout: CONFIGURATION_TIMEOUT_MS }
+      }, null, (configuration: REXConfiguration) => {
+        this.applyConfiguration(configuration)
+        resolve()
+      })
     })
   }
 
   private applyConfiguration(configuration: REXConfiguration | undefined) {
-    const redactionConfig = configuration?.[CONFIGURATION_KEY] as REXContentProcessingUrlRedactionConfiguration | undefined
+    if (configuration === undefined || configuration === null) {
+      return
+    }
 
-    if (redactionConfig === undefined) {
+    const section = configuration[CONFIGURATION_KEY]
+
+    if (typeof section !== 'object' || section === null || Array.isArray(section)) {
+      this.hideEveryAddress()
+
+      return
+    }
+
+    const redactionConfig = section as REXContentProcessingRedactionUrlConfiguration
+
+    if (typeof redactionConfig.enabled !== 'boolean') {
+      if (redactionConfig.enabled !== undefined) {
+        console.warn(`${LOG_PREFIX} enabled is not true or false, treating the configuration as missing`)
+      }
+
+      this.hideEveryAddress()
+
       return
     }
 
     this.config = redactionConfig
 
     if (redactionConfig.enabled === true) {
-      this.processor.config = redactionConfig
+      this.processor.useConfiguration(normalizeConfiguration(redactionConfig))
       this.processor.enable()
     } else {
       this.processor.disable()
     }
   }
+
+  private hideEveryAddress() {
+    this.config = null
+    this.processor.useConfiguration(null)
+    this.processor.enable()
+  }
 }
 
-const plugin = new REXContentProcessingUrlRedactionModule()
+const plugin = new REXContentProcessingRedactionUrlModule()
 
 registerREXModule(plugin)
 

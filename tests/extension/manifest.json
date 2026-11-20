@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "REX Content Processing URL Redaction Test Extension",
+  "name": "REX Content Processing Redaction URL Test Extension",
   "version": "1.0.0",
-  "description": "Test extension for rex-content-processing-url-redaction.",
+  "description": "Test extension for rex-content-processing-redaction-url.",
   "permissions": [
     "scripting",
     "storage",
