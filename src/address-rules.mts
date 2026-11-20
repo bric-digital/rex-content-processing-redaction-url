@@ -57,15 +57,20 @@ function failedResult(url: string, title: string, domain: string): AddressResult
 }
 
 function domainOnlyResult(match: ListMatch, domain: string): AddressResult {
-  return {
+  const result: AddressResult = {
     url: '',
     title: '',
     domain,
     filtered: true,
     failed: false,
     filtered_by_list: match.listName,
-    filtered_by_list_entry: match.entry,
   }
+
+  if (match.entry.pattern.trim().toLowerCase() !== domain) {
+    return result
+  }
+
+  return { ...result, filtered_by_list_entry: match.entry }
 }
 
 function domainOnlyFallbackResult(domain: string): AddressResult {
@@ -98,10 +103,13 @@ function filterListResult(match: ListMatch, allowMatch: ListMatch | null): Addre
     filtered: true,
     failed: false,
     filtered_by_list: match.listName,
-    filtered_by_list_entry: match.entry,
   }
 
-  return withAllowMatch(result, allowMatch)
+  if (allowMatch === null) {
+    return result
+  }
+
+  return { ...result, allowed_by_list: allowMatch.listName }
 }
 
 function withAllowMatch(result: AddressResult, allowMatch: ListMatch | null): AddressResult {

@@ -504,6 +504,56 @@ test.describe('fields of a record type', () => {
     expect(result.allowed_by_list).toBe('record-allow')
   })
 
+  test('a record hidden by a filter list gains the list name and not the matched entry', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, {
+      lists: { 'record-allow': [listEntry('example.org', 'ALLOWED', 'domain')], 'record-filter': [listEntry('example.org', 'EMAIL', 'domain')] },
+      allow_lists: ['record-allow'],
+      filter_lists: ['record-filter'],
+    })
+
+    const given = withId({ name: 'rex-browsing-visit', url: 'https://mail.example.org/inbox', title: 'Inbox', domain: 'example.org' })
+    const result = await processed(serviceWorker, given)
+
+    expect(result).toEqual({ ...given, url: 'CATEGORY:EMAIL', title: '', domain: '', filtered: true, filtered_by_list: 'record-filter', allowed_by_list: 'record-allow' })
+    expect(JSON.stringify(result)).not.toContain('example.org')
+  })
+
+  test('entries an incoming record already carries are blanked when a filter list hides its address', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, {
+      lists: { 'record-allow': [listEntry('example.org', 'ALLOWED', 'domain')], 'record-filter': [listEntry('example.org', 'EMAIL', 'domain')] },
+      allow_lists: ['record-allow'],
+      filter_lists: ['record-filter'],
+    })
+
+    const result = await processed(serviceWorker, withId({
+      name: 'rex-browsing-visit',
+      url: 'https://mail.example.org/inbox',
+      title: 'Inbox',
+      domain: 'example.org',
+      filtered_by_list_entry: { list_name: 'record-filter', pattern: 'example.org' },
+      allowed_by_list_entry: { list_name: 'record-allow', pattern: 'example.org' },
+    }))
+
+    expect(result.filtered_by_list).toBe('record-filter')
+    expect(result.filtered_by_list_entry).toBe('')
+    expect(result.allowed_by_list).toBe('record-allow')
+    expect(result.allowed_by_list_entry).toBe('')
+    expect(JSON.stringify(result)).not.toContain('example.org')
+  })
+
+  test('a record on a domain-only list whose pattern holds more than the kept domain gains no matched entry', async ({ serviceWorker }) => {
+    await startWith(serviceWorker, {
+      lists: { 'record-domain-only': [listEntry('mail.example.org', 'ANY', 'host')] },
+      domain_only_lists: ['record-domain-only'],
+    })
+
+    const given = withId({ name: 'rex-browsing-visit', url: 'https://mail.example.org/inbox', title: 'Inbox', domain: 'example.org', filtered_by_list_entry: { pattern: 'old' } })
+    const result = await processed(serviceWorker, given)
+
+    expect(result).toEqual({ ...given, url: '', title: '', domain: 'example.org', filtered: true, filtered_by_list: 'record-domain-only', filtered_by_list_entry: '' })
+    expect(JSON.stringify(result)).not.toContain('mail.')
+  })
+
   test('a label the record never had is not added when the result does not provide it', async ({ serviceWorker }) => {
     await startWith(serviceWorker, ALLOW_ONLY_KEPT)
 
@@ -1035,7 +1085,8 @@ test.describe('not_on_allowlist_behavior', () => {
     const result = await processed(serviceWorker, given)
 
     expect(result).toMatchObject({ url: 'CATEGORY:BLOCKED', recorded_url: 'CATEGORY:BLOCKED', title: '', domain: '', filtered: true, filtered_by_list: 'record-filter' })
-    expect(result.filtered_by_list_entry).toMatchObject({ list_name: 'record-filter', pattern: 'example.edu' })
+    expect('filtered_by_list_entry' in result).toBe(false)
+    expect(JSON.stringify(result)).not.toContain('example.edu')
     expect('allowed_by_list' in result).toBe(false)
   })
 

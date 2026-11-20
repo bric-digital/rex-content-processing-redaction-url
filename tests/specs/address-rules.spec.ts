@@ -158,7 +158,8 @@ test.describe('Address rules', () => {
     const result = await resolve(serviceWorker, { allow_lists: ['a'], filter_lists: ['f'], not_on_allowlist_behavior: 'domain_only' }, 'https://www.example.org/p', 'T')
 
     expect(result).toMatchObject({ url: 'CATEGORY:news', title: '', domain: '', filtered: true, filtered_by_list: 'f', failed: false })
-    expect(result.filtered_by_list_entry).toMatchObject({ list_name: 'f', pattern: 'example.org' })
+    expect(result.filtered_by_list_entry).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain('example.org')
     expect(result.allowed_by_list).toBeUndefined()
     expect(result.allowed_by_list_entry).toBeUndefined()
   })
@@ -236,9 +237,38 @@ test.describe('Address rules', () => {
 
     const result = await resolve(serviceWorker, { filter_lists: ['f'] }, 'https://hidden.test/p', 'T')
 
-    expect(result).toMatchObject({ url: 'CATEGORY:news', title: '', domain: '', filtered: true, filtered_by_list: 'f', failed: false })
-    expect(result.filtered_by_list_entry).toMatchObject({ list_name: 'f', pattern: 'hidden.test' })
+    expect(result).toEqual({ url: 'CATEGORY:news', title: '', domain: '', filtered: true, filtered_by_list: 'f', failed: false })
   })
+
+  for (const [patternType, pattern] of [['domain', 'example.org'], ['host', 'mail.example.org'], ['host_path_prefix', 'mail.example.org/inbox'], ['exact_url', 'https://mail.example.org/inbox/7?q=1'], ['regex', '^https://mail\\.example\\.org/']]) {
+    test(`a filter list match on a ${patternType} pattern carries neither the matched entry nor the host`, async ({ serviceWorker }) => {
+      await addListEntry(serviceWorker, 'f', pattern, 'news', patternType)
+
+      const result = await resolve(serviceWorker, { filter_lists: ['f'] }, 'https://mail.example.org/inbox/7?q=1', 'T')
+
+      expect(result).toEqual({ url: 'CATEGORY:news', title: '', domain: '', filtered: true, filtered_by_list: 'f', failed: false })
+      expect(JSON.stringify(result)).not.toContain('example')
+    })
+  }
+
+  test('a domain-only match on a pattern that is the kept domain carries its list entry', async ({ serviceWorker }) => {
+    await addListEntry(serviceWorker, 'd', 'example.com', 'ANY', 'domain')
+
+    const result = await resolve(serviceWorker, { domain_only_lists: ['d'] }, 'https://mail.example.com/inbox', 'T')
+
+    expect(result).toMatchObject({ url: '', title: '', domain: 'example.com', filtered_by_list: 'd' })
+    expect(result.filtered_by_list_entry).toMatchObject({ list_name: 'd', pattern: 'example.com' })
+  })
+
+  for (const [patternType, pattern] of [['host', 'mail.example.com'], ['host_path_prefix', 'mail.example.com/inbox'], ['exact_url', 'https://mail.example.com/inbox/7?q=1'], ['regex', '^https://mail\\.example\\.com/']]) {
+    test(`a domain-only match on a ${patternType} pattern that holds more than the kept domain carries no list entry`, async ({ serviceWorker }) => {
+      await addListEntry(serviceWorker, 'd', pattern, 'ANY', patternType)
+
+      const result = await resolve(serviceWorker, { domain_only_lists: ['d'] }, 'https://mail.example.com/inbox/7?q=1', 'T')
+
+      expect(result).toEqual({ url: '', title: '', domain: 'example.com', filtered: true, failed: false, filtered_by_list: 'd' })
+    })
+  }
 
   test('a filter list entry without a category gives CATEGORY:null', async ({ serviceWorker }) => {
     await addListEntry(serviceWorker, 'f', 'hidden.test', undefined)
@@ -253,8 +283,7 @@ test.describe('Address rules', () => {
 
     const result = await resolve(serviceWorker, { allow_lists: ['a'], filter_lists: ['f'] }, 'https://kept.test/p', 'T')
 
-    expect(result).toMatchObject({ url: 'CATEGORY:news', filtered: true, filtered_by_list: 'f', allowed_by_list: 'a' })
-    expect(result.allowed_by_list_entry).toMatchObject({ list_name: 'a', pattern: 'kept.test' })
+    expect(result).toEqual({ url: 'CATEGORY:news', title: '', domain: '', filtered: true, failed: false, filtered_by_list: 'f', allowed_by_list: 'a' })
   })
 
   test('an address on an allow list and no filter list is unchanged and reports the allow list', async ({ serviceWorker }) => {

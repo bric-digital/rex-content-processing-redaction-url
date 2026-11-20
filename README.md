@@ -44,7 +44,18 @@ A record type says which fields of a record hold addresses:
 
 A type with `domain` and no `url` is a domain-only record. When its domain is a non-empty string, its hostname is judged by the same rules as the address `https://<hostname>/`, and only `domain` is written. A value that starts with a scheme, such as `http://blocked.com`, is parsed as it is; otherwise it is parsed as `https://<value>/`, so `blocked.com/x` and `user@blocked.com` are judged as `blocked.com`. When the address is allowed or on a domain-only list, the field keeps the registered domain (`sub.kept.test` becomes `kept.test`), or the hostname when there is no registered domain (an IP address or `localhost`); the original string is never written back. When the address is replaced, the field becomes `''` and `filtered` is `true`; otherwise `filtered` is `false`. Before configuration, or under `on_failure: "hide"` after a failure, the domain becomes `''`. A domain with no usable hostname, such as `not available`, is left as it was with `filtered: false` in every state. The `rex-history-skipped` event is a domain-only type by default. The visit ceiling events of `rex-history` and `rex-browsing` hold an address (`recorded_url` and `url`), so their types name both `url` and `domain`. A `rex-browsing` visit ceiling event without a string `url`, as an older `rex-browsing` sends it, is handled by a second default type for that event, a domain-only type, so its domain is still judged. A domain-only type is judged as `https://<hostname>/`, so a filter entry narrower than a registered domain does not blank it.
 
-A label field the record already has (`filtered_by_list`, `allowed_by_list` and their `_entry` fields) is written as `''` when the result does not provide it, so no stale label stays. A label the record does not have is not added.
+The list labels a record can carry:
+
+| Field | Written when | Value |
+|---|---|---|
+| `filtered_by_list` | the address is hidden by a list or is on no allow list | the list name, or `NOT_ON_ALLOWLIST` |
+| `filtered_by_list_entry` | the address is on a domain-only list and the matched pattern is exactly the domain the record keeps | the matched list entry |
+| `allowed_by_list` | the address is on an allow list | the list name |
+| `allowed_by_list_entry` | the address is on an allow list and is shown | the matched list entry |
+
+A filter list match never writes a matched entry, neither the filter list's nor the allow list's, because an entry's pattern holds the hidden domain or address. The record keeps the list names and the category. A domain-only list match writes its entry only when the pattern is the kept domain itself; an entry whose pattern holds more, such as a subdomain, a path, an exact address or a regular expression, is not written.
+
+A label field the record already has (`filtered_by_list`, `allowed_by_list` and their `_entry` fields) is written as `''` when the result does not provide it, so no stale label stays; this includes an entry field on a record a filter list hides. A label the record does not have is not added.
 
 ## Redaction
 
@@ -56,9 +67,9 @@ Rules, in this order:
 |---|---|---|---|---|
 | `url` is `''` or not a valid URL | unchanged | unchanged | `''` | `filtered: false` |
 | A named list has no entries, or a lookup throws | handled by `on_failure` | handled by `on_failure` | handled by `on_failure` | the record is unchanged, or `CATEGORY:REDACTION_FAILED` under `hide` |
-| On a domain-only list | `''` | `''` | registered domain | `filtered: true`, `filtered_by_list` |
+| On a domain-only list | `''` | `''` | registered domain | `filtered: true`, `filtered_by_list`, `filtered_by_list_entry` when its pattern is the kept domain |
 | Allow lists named, no match, with `not_on_allowlist_behavior: "category"` (the default) | `CATEGORY:NOT_ON_ALLOWLIST` | `''` | `''` | `filtered: true`, `filtered_by_list: "NOT_ON_ALLOWLIST"` |
-| On a filter list | `CATEGORY:<category>` (`CATEGORY:null` without a category) | `''` | `''` | `filtered: true`, `filtered_by_list`, `allowed_by_list` if any |
+| On a filter list | `CATEGORY:<category>` (`CATEGORY:null` without a category) | `''` | `''` | `filtered: true`, `filtered_by_list`, `allowed_by_list` if any, no `_entry` field |
 | Allow lists named, no match, with `not_on_allowlist_behavior: "domain_only"` | `''` | `''` | registered domain | `filtered: true`, `filtered_by_list: "NOT_ON_ALLOWLIST"` |
 | Otherwise | unchanged | unchanged | registered domain | `filtered: false`, `allowed_by_list` if any |
 
@@ -117,7 +128,6 @@ It needs `@bric/rex-content-processing` and a collector that runs content proces
 ## Limits
 
 - Do not name a generated list, one a module fills at run time such as `rex-history`'s top domains, in this module's lists. It is empty until it is generated, and an empty named list is a failure.
-- `filtered_by_list_entry` and `allowed_by_list_entry` carry the matched list entry. An entry whose pattern type is `exact_url` (an exact address) or `regex` (a regular expression) can itself contain the address that was hidden.
 - When an extension has two installed copies of `@bric/rex-content-processing`, this processor registers with a copy that no collector calls, and nothing is redacted. The extension must have one copy; `npm ls @bric/rex-content-processing` shows them.
 
 ## Testing

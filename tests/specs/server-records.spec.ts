@@ -155,6 +155,7 @@ test.describe('records the server received', () => {
     expect(record.domain).toBe('')
     expect(record.filtered).toBe(true)
     expect(record.filtered_by_list).toBe('server-filter')
+    expect(JSON.stringify(record)).not.toContain('example.edu')
   })
 
   test('an address on a filter list arrives as its category with a blank title and domain', async ({ serviceWorker }) => {
@@ -165,6 +166,8 @@ test.describe('records the server received', () => {
     expect(record.url).toBe('CATEGORY:TEST_FILTERED')
     expect(record.title).toBe('')
     expect(record.domain).toBe('')
+    expect(record.filtered_by_list).toBe('server-filter')
+    expect(JSON.stringify(record)).not.toContain('example.org')
   })
 
   test('an allowed address arrives unchanged with its title and registered domain', async ({ serviceWorker }) => {
